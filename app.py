@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
+from core.exit_engine import evaluate_exit
+
 # --------------------------------------------------
 # Page Setup
 # --------------------------------------------------
@@ -216,6 +218,24 @@ def generate_screener_verdict(row) -> str:
     return "UNCLASSIFIED"
 
 
+def apply_exit_engine(df: pd.DataFrame, engine_a_score: float) -> pd.DataFrame:
+    """
+    Applies the central Exit Engine to every row.
+    """
+    df = df.copy()
+
+    exit_results = df.apply(
+        lambda row: evaluate_exit(row, engine_a_score=engine_a_score),
+        axis=1,
+    )
+
+    df["Exit Verdict"] = exit_results.apply(lambda result: result.get("verdict", "GUARD"))
+    df["Exit Reason"] = exit_results.apply(lambda result: result.get("reason", "Manual review required."))
+    df["Exit Priority"] = exit_results.apply(lambda result: result.get("priority", 10))
+
+    return df
+
+
 def calculate_portfolio_from_holdings(df: pd.DataFrame) -> pd.DataFrame:
     df = clean_columns(df)
     df = df.copy()
@@ -286,12 +306,42 @@ with col1:
     st.metric("System Version", "v1.0")
 
 with col2:
-    st.metric("Build Stage", "Multi-CSV Upload")
+    st.metric("Build Stage", "Exit Engine Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
 
 st.divider()
+
+# --------------------------------------------------
+# Sidebar Controls
+# --------------------------------------------------
+st.sidebar.title("⚙️ System Controls")
+
+engine_a_score = st.sidebar.slider(
+    "Engine A Score",
+    min_value=0,
+    max_value=100,
+    value=50,
+    step=1,
+)
+
+st.sidebar.caption("Temporary manual score. Later this will come from Engine A Market Gate.")
+
+if engine_a_score <= 20:
+    market_regime = "EXIT"
+elif engine_a_score <= 30:
+    market_regime = "FREEZE"
+elif engine_a_score <= 40:
+    market_regime = "CAUTIOUS"
+elif engine_a_score <= 52:
+    market_regime = "ACTIVE"
+elif engine_a_score <= 62:
+    market_regime = "AGGRESSIVE"
+else:
+    market_regime = "FULL DEPLOY"
+
+st.sidebar.metric("Market Regime", market_regime)
 
 # --------------------------------------------------
 # Tabs
@@ -329,26 +379,50 @@ with tab1:
             raw_df = pd.read_csv(uploaded_file)
             prepared_df = prepare_screener_df(raw_df, uploaded_file.name)
             prepared_df["Rule Verdict"] = prepared_df.apply(generate_screener_verdict, axis=1)
+            prepared_df = apply_exit_engine(prepared_df, engine_a_score=engine_a_score)
             all_screeners.append(prepared_df)
 
         combined_df = pd.concat(all_screeners, ignore_index=True)
 
         st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
-        st.metric("Total Screener Rows", len(combined_df))
 
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("Unique Stocks", combined_df["Stock"].nunique())
+            st.metric("Total Screener Rows", len(combined_df))
 
         with col2:
-            st.metric("Momentum Rows", int((combined_df["Engine"] == "B").sum()))
+            st.metric("Unique Stocks", combined_df["Stock"].nunique())
 
         with col3:
-            st.metric("Value Rows", int((combined_df["Engine"] == "C").sum()))
+            st.metric("Exit / Guard", int(combined_df["Exit Verdict"].isin(["EXIT", "GUARD"]).sum()))
 
         with col4:
+            st.metric("Ride / Trim", int(combined_df["Exit Verdict"].isin(["RIDE", "TRIM"]).sum()))
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Momentum Rows", int((combined_df["Engine"] == "B").sum()))
+
+        with col2:
+            st.metric("Value Rows", int((combined_df["Engine"] == "C").sum()))
+
+        with col3:
             st.metric("Compounder Rows", int((combined_df["Engine"] == "D").sum()))
+
+        st.divider()
+
+        st.subheader("🚦 Exit Engine Verdict Summary")
+
+        verdict_summary = (
+            combined_df.groupby(["Engine", "Exit Verdict"], as_index=False)
+            .size()
+            .rename(columns={"size": "Count"})
+            .sort_values(["Engine", "Exit Verdict"])
+        )
+
+        st.dataframe(verdict_summary, use_container_width=True)
 
         st.divider()
 
@@ -369,6 +443,7 @@ with tab1:
                 Piotroski=("Piotroski Score", "first"),
                 Durability=("Durability Score", "first"),
                 Momentum=("Momentum Score", "first"),
+                Exit_Verdicts=("Exit Verdict", lambda x: ", ".join(sorted(set(x)))),
             )
             .sort_values(["Count", "Market_Cap"], ascending=[False, False])
         )
@@ -383,6 +458,42 @@ with tab1:
 
         st.divider()
 
+        st.subheader("🚨 Exit / Guard Watchlist")
+
+        watchlist_df = combined_df[
+            combined_df["Exit Verdict"].isin(["EXIT", "GUARD", "FREEZE"])
+        ].copy()
+
+        watchlist_columns = [
+            "Stock",
+            "Engine",
+            "Screener",
+            "Rule Verdict",
+            "Exit Verdict",
+            "Exit Reason",
+            "Durability Score",
+            "Momentum Score",
+            "Piotroski Score",
+            "ROE Ann  %",
+            "PE TTM",
+            "PEG TTM",
+            "Total Debt to Total Equity Ann ",
+            "Net Profit Ann  YoY Growth %",
+            "Revenue QoQ Growth %",
+        ]
+
+        watchlist_columns = [col for col in watchlist_columns if col in watchlist_df.columns]
+
+        if not watchlist_df.empty:
+            st.dataframe(
+                watchlist_df[watchlist_columns].sort_values(["Exit Verdict", "Stock"]),
+                use_container_width=True,
+            )
+        else:
+            st.success("No Exit/Guard items detected at current Engine A score.")
+
+        st.divider()
+
         st.subheader("📊 Combined Screener Table")
 
         available_cols = [col for col in SCREENER_KEY_COLUMNS if col in combined_df.columns]
@@ -392,6 +503,8 @@ with tab1:
             "Engine",
             "Screener",
             "Rule Verdict",
+            "Exit Verdict",
+            "Exit Reason",
         ] + available_cols + ["Market Cap Category"]
 
         st.dataframe(
@@ -451,6 +564,7 @@ with tab2:
             st.warning("This looks like a screener CSV, not a holdings portfolio CSV. Please upload screener files in the Screener Upload tab.")
         else:
             portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
+            portfolio_df = apply_exit_engine(portfolio_df, engine_a_score=engine_a_score)
 
             invested_value = portfolio_df["Invested Value"].sum()
             current_value = portfolio_df["Current Value"].sum()
@@ -472,6 +586,16 @@ with tab2:
 
             with col4:
                 st.metric("Positions", len(portfolio_df))
+
+            st.divider()
+
+            st.subheader("🚦 Portfolio Exit Verdicts")
+            verdict_counts = (
+                portfolio_df.groupby("Exit Verdict", as_index=False)
+                .size()
+                .rename(columns={"size": "Count"})
+            )
+            st.dataframe(verdict_counts, use_container_width=True)
 
             st.divider()
 
@@ -542,13 +666,13 @@ modules = pd.DataFrame(
             "AI Analyst Layer",
         ],
         "Status": [
+            "Working",
             "In Progress",
-            "In Progress",
-            "Not Started",
-            "Not Started",
-            "Not Started",
-            "Not Started",
-            "Not Started",
+            "Connected v0.1",
+            "Manual Slider",
+            "Basic Rules",
+            "Basic Rules",
+            "Basic Rules",
             "Not Started",
             "Not Started",
         ],
@@ -557,4 +681,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Multi-upload module loaded successfully.")
+st.success("Exit Engine connection loaded successfully.")
