@@ -1,3 +1,8 @@
+from core.portfolio_compatibility import (
+    evaluate_portfolio_holdings,
+    find_fresh_candidates,
+    summarize_portfolio_compatibility,
+)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -16,15 +21,6 @@ from core.position_sizing import (
 from core.conviction_engine import (
     apply_conviction_engine,
     summarize_conviction,
-)
-from core.stock_master import (
-    create_stock_master_view,
-    summarize_stock_master,
-)
-from core.portfolio_compatibility import (
-    evaluate_portfolio_holdings,
-    find_fresh_candidates,
-    summarize_portfolio_compatibility,
 )
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
@@ -314,7 +310,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.1")
+st.caption("Rules-Based Portfolio Intelligence System | v1.1.1")
 
 st.divider()
 
@@ -366,10 +362,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.1")
+    st.metric("System Version", "v0.9.1")
 
 with col2:
-    st.metric("Build Stage", "Portfolio Compatibility Connected")
+    st.metric("Build Stage", "Allocation Notes Fixed")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -465,8 +461,6 @@ with tab1:
             engine_a_score=engine_a_score,
             market_regime=engine_a_result["regime"],
         )
-
-        stock_master_df = create_stock_master_view(combined_df)
 
         st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
 
@@ -782,79 +776,6 @@ with tab1:
                 )
         else:
             st.info("No positive position-size candidates detected.")
-
-        st.divider()
-
-        st.subheader("🧬 Stock Master View")
-
-        stock_master_summary = summarize_stock_master(stock_master_df)
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("Unique Stocks", stock_master_summary["unique_stocks"])
-
-        with col2:
-            st.metric("High Conviction Stocks", stock_master_summary["high_conviction"])
-
-        with col3:
-            st.metric("Normal Position Stocks", stock_master_summary["normal_position"])
-
-        with col4:
-            st.metric("Track Only Stocks", stock_master_summary["track_only"])
-
-        if not stock_master_df.empty:
-            st.dataframe(stock_master_df, use_container_width=True)
-
-            st.divider()
-
-            st.subheader("🏛️ Top Stock-Level Allocation Notes")
-
-            top_stock_master_df = stock_master_df.head(12)
-
-            for _, stock_row in top_stock_master_df.iterrows():
-                stock_name = stock_row.get("Stock", "Unknown")
-                engines_present = stock_row.get("Engines Present", "Unknown")
-                screeners_present = stock_row.get("Screeners Present", "Unknown")
-                appearance_count = stock_row.get("Appearance Count", "NA")
-                conviction_level = stock_row.get("Best Conviction Level", "Unknown")
-                conviction_score = stock_row.get("Best Conviction Score", "NA")
-                suggested_position = stock_row.get("Highest Suggested Position %", "NA")
-                final_action = stock_row.get("Final Allocation Action", "NA")
-                best_risk = stock_row.get("Best Risk Level", "NA")
-                worst_risk = stock_row.get("Worst Risk Level", "NA")
-                exit_verdicts = stock_row.get("Exit Verdicts", "NA")
-                combined_notes = stock_row.get("Combined Notes", "No combined notes available.")
-
-                if final_action in ["HIGH CONVICTION POSITION", "NORMAL POSITION"]:
-                    st.success(
-                        f"**{stock_name}**\n\n"
-                        f"Engines: **{engines_present}** | Screeners: **{screeners_present}** | Appearances: **{appearance_count}**\n\n"
-                        f"Conviction: **{conviction_level}** | Score: **{conviction_score}/100**\n\n"
-                        f"Suggested Position: **{suggested_position}%** | Final Action: **{final_action}**\n\n"
-                        f"Risk: Best **{best_risk}**, Worst **{worst_risk}** | Exit Verdicts: **{exit_verdicts}**\n\n"
-                        f"{combined_notes}"
-                    )
-                elif "STARTER" in str(final_action):
-                    st.info(
-                        f"**{stock_name}**\n\n"
-                        f"Engines: **{engines_present}** | Screeners: **{screeners_present}** | Appearances: **{appearance_count}**\n\n"
-                        f"Conviction: **{conviction_level}** | Score: **{conviction_score}/100**\n\n"
-                        f"Suggested Position: **{suggested_position}%** | Final Action: **{final_action}**\n\n"
-                        f"Risk: Best **{best_risk}**, Worst **{worst_risk}** | Exit Verdicts: **{exit_verdicts}**\n\n"
-                        f"{combined_notes}"
-                    )
-                else:
-                    st.warning(
-                        f"**{stock_name}**\n\n"
-                        f"Engines: **{engines_present}** | Screeners: **{screeners_present}** | Appearances: **{appearance_count}**\n\n"
-                        f"Conviction: **{conviction_level}** | Score: **{conviction_score}/100**\n\n"
-                        f"Suggested Position: **{suggested_position}%** | Final Action: **{final_action}**\n\n"
-                        f"Risk: Best **{best_risk}**, Worst **{worst_risk}** | Exit Verdicts: **{exit_verdicts}**\n\n"
-                        f"{combined_notes}"
-                    )
-        else:
-            st.info("No stock master view available yet.")
 
         st.divider()
 
@@ -1221,9 +1142,7 @@ modules = pd.DataFrame(
         {"Module": "Engine D Compounders", "Status": "Basic Rules"},
         {"Module": "Risk Engine", "Status": "Connected v0.1"},
         {"Module": "Position Sizing Engine", "Status": "Connected v0.1"},
-        {"Module": "Conviction Engine", "Status": "Connected v0.2"},
-        {"Module": "Stock Master View", "Status": "Connected v0.1"},
-        {"Module": "Portfolio Compatibility Engine", "Status": "Connected v0.1"},
+        {"Module": "Conviction Engine", "Status": "Connected v0.1"},
         {"Module": "Decision Journal", "Status": "Connected v0.1"},
         {"Module": "AI Analyst Layer", "Status": "Not Started"},
     ]
