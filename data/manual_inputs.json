@@ -60,6 +60,18 @@
             "suggested_source": "S&P Global India PMI / Trading Economics",
             "update_frequency": "Monthly"
         },
+        "india_10y_gsec": {
+            "value": 7.1,
+            "unit": "percent",
+            "suggested_source": "RBI / CCIL / Investing.com / Trading Economics / market data source",
+            "update_frequency": "Weekly"
+        },
+        "india_10y_gsec_30d_change_bps": {
+            "value": 0.0,
+            "unit": "basis points",
+            "suggested_source": "Calculated from current India 10Y G-sec yield minus yield 30 days ago",
+            "update_frequency": "Weekly"
+        },
         "us_10y": {
             "value": 4.3,
             "unit": "percent",
