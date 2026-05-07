@@ -7,6 +7,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
+from core.stock_master import (
+    create_stock_master_view,
+    summarize_stock_master,
+)
 from core.exit_engine import evaluate_exit
 from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
 from core.risk_engine import (
@@ -37,15 +41,17 @@ st.set_page_config(
 # Session Helpers
 # --------------------------------------------------
 def get_active_stock_master_df():
-    """Return Stock Master View from local scope/session state if available."""
-    if "stock_master_df" in globals():
+    """Return Stock Master View from Streamlit session state if available."""
+    stock_master_df = st.session_state.get("stock_master_df", None)
+
+    if stock_master_df is not None:
         try:
-            if stock_master_df is not None and not stock_master_df.empty:
+            if not stock_master_df.empty:
                 return stock_master_df
         except Exception:
             pass
 
-    return st.session_state.get("stock_master_df", None)
+    return None
 
 
 def save_stock_master_to_session(stock_master_df):
@@ -332,7 +338,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.1.3")
+st.caption("Rules-Based Portfolio Intelligence System | v1.1.4")
 
 st.divider()
 
@@ -384,10 +390,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.1.3")
+    st.metric("System Version", "v1.1.4")
 
 with col2:
-    st.metric("Build Stage", "Portfolio Compatibility Session Fixed")
+    st.metric("Build Stage", "Stock Master Persisted")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -484,7 +490,11 @@ with tab1:
             market_regime=engine_a_result["regime"],
         )
 
+        stock_master_df = create_stock_master_view(combined_df)
+        save_stock_master_to_session(stock_master_df)
+
         st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
+        st.success("Stock Master View saved for Portfolio Compatibility.")
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -801,6 +811,51 @@ with tab1:
 
         st.divider()
 
+        st.subheader("🧬 Stock Master View")
+
+        stock_master_summary = summarize_stock_master(stock_master_df)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Master Stocks", stock_master_summary["unique_stocks"])
+
+        with col2:
+            st.metric("High Conviction", stock_master_summary["high_conviction"])
+
+        with col3:
+            st.metric("Normal Positions", stock_master_summary["normal_position"])
+
+        with col4:
+            st.metric("Track Only", stock_master_summary["track_only"])
+
+        stock_master_display_columns = [
+            "Stock",
+            "Engines Present",
+            "Screeners Present",
+            "Appearance Count",
+            "Best Conviction Score",
+            "Best Conviction Level",
+            "Highest Suggested Position %",
+            "Final Allocation Action",
+            "Best Risk Level",
+            "Worst Risk Level",
+            "Exit Verdicts",
+            "Combined Notes",
+        ]
+
+        stock_master_display_columns = [
+            column for column in stock_master_display_columns
+            if column in stock_master_df.columns
+        ]
+
+        st.dataframe(
+            stock_master_df[stock_master_display_columns],
+            use_container_width=True,
+        )
+
+        st.divider()
+
         st.subheader("🚦 Exit Engine Verdict Summary")
 
         verdict_summary = (
@@ -967,11 +1022,6 @@ with tab2:
                 market_regime=engine_a_result["regime"],
             )
 
-            portfolio_compatibility_df = evaluate_portfolio_holdings(
-                portfolio_df,
-                active_stock_master_df if "active_stock_master_df" in locals() else get_active_stock_master_df(),
-            )
-
             invested_value = portfolio_df["Invested Value"].sum()
             current_value = portfolio_df["Current Value"].sum()
             pnl = current_value - invested_value
@@ -1053,6 +1103,7 @@ with tab2:
 
             if active_stock_master_df is not None and not active_stock_master_df.empty:
                 st.success("Stock Master View is available for portfolio compatibility.")
+                st.metric("Stock Master Rows Available", len(active_stock_master_df))
             else:
                 st.warning("Stock Master View is not loaded in this session. Upload the 5 screener CSV files first.")
 
