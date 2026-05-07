@@ -530,13 +530,43 @@ with tab1:
         ]
 
         if not risk_watchlist_df.empty:
+            sorted_risk_watchlist_df = risk_watchlist_df[risk_watchlist_columns].sort_values(
+                ["Risk Level", "Risk Score", "Stock"],
+                ascending=[True, False, True],
+            )
+
             st.dataframe(
-                risk_watchlist_df[risk_watchlist_columns].sort_values(
-                    ["Risk Level", "Risk Score", "Stock"],
-                    ascending=[True, False, True],
-                ),
+                sorted_risk_watchlist_df,
                 use_container_width=True,
             )
+
+            st.divider()
+
+            st.subheader("🧾 Top Risk Notes")
+
+            top_risk_notes_df = sorted_risk_watchlist_df.head(12)
+
+            for _, risk_row in top_risk_notes_df.iterrows():
+                stock_name = risk_row.get("Stock", "Unknown")
+                engine_name = risk_row.get("Engine", "Unknown")
+                screener_name = risk_row.get("Screener", "Unknown")
+                risk_level = risk_row.get("Risk Level", "Unknown")
+                risk_score = risk_row.get("Risk Score", "NA")
+                risk_notes = risk_row.get("Risk Notes", "No risk notes available.")
+                exit_verdict = risk_row.get("Exit Verdict", "NA")
+
+                if risk_level in ["HIGH", "CRITICAL"]:
+                    st.warning(
+                        f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
+                        f"Risk: **{risk_level}** | Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
+                        f"{risk_notes}"
+                    )
+                else:
+                    st.info(
+                        f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
+                        f"Risk: **{risk_level}** | Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
+                        f"{risk_notes}"
+                    )
         else:
             st.success("No moderate/high/critical risk rows detected.")
 
