@@ -310,7 +310,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.1.1")
+st.caption("Rules-Based Portfolio Intelligence System | v1.1.2.2")
 
 st.divider()
 
@@ -362,10 +362,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.9.1")
+    st.metric("System Version", "v1.1.2")
 
 with col2:
-    st.metric("Build Stage", "Allocation Notes Fixed")
+    st.metric("Build Stage", "Portfolio Compatibility Live")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -1025,6 +1025,102 @@ with tab2:
 
             st.divider()
 
+            st.subheader("🧩 Portfolio Compatibility Engine")
+
+            portfolio_compatibility_df = evaluate_portfolio_holdings(
+                portfolio_df,
+                stock_master_df if "stock_master_df" in locals() else None,
+            )
+
+            compatibility_summary = summarize_portfolio_compatibility(portfolio_compatibility_df)
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Holdings", compatibility_summary["holdings"])
+
+            with col2:
+                st.metric("Matched", compatibility_summary["matched"])
+
+            with col3:
+                st.metric("Core / Add", compatibility_summary["core_hold_or_add"])
+
+            with col4:
+                st.metric("Track / Reduce", compatibility_summary["track_or_reduce"])
+
+            st.dataframe(portfolio_compatibility_df, use_container_width=True)
+
+            st.divider()
+
+            st.subheader("🧾 Portfolio Action Notes")
+
+            top_portfolio_notes_df = portfolio_compatibility_df.head(12)
+
+            for _, holding_row in top_portfolio_notes_df.iterrows():
+                stock_name = holding_row.get("Stock", "Unknown")
+                weight = holding_row.get("Portfolio Weight %", "NA")
+                status = holding_row.get("Portfolio Status", "NA")
+                master_conviction = holding_row.get("Master Conviction Level", "NA")
+                master_action = holding_row.get("Master Allocation Action", "NA")
+                score = holding_row.get("Portfolio Compatibility Score", "NA")
+                action = holding_row.get("Portfolio Compatibility Action", "NA")
+                notes = holding_row.get("Portfolio Compatibility Notes", "No notes available.")
+
+                card_text = (
+                    f"**{stock_name}**\n\n"
+                    f"Portfolio Weight: **{weight}%** | Status: **{status}**\n\n"
+                    f"Master Conviction: **{master_conviction}** | Master Action: **{master_action}**\n\n"
+                    f"Compatibility Score: **{score}/100** | Action: **{action}**\n\n"
+                    f"{notes}"
+                )
+
+                action_upper = str(action).upper()
+
+                if "CORE" in action_upper or "ADD" in action_upper:
+                    st.success(card_text)
+                elif "TRACK" in action_upper or "REDUCE" in action_upper or "REVIEW" in action_upper:
+                    st.warning(card_text)
+                else:
+                    st.info(card_text)
+
+            st.divider()
+
+            st.subheader("🌱 Fresh Candidates Not Currently Held")
+
+            fresh_candidates_df = find_fresh_candidates(
+                stock_master_df if "stock_master_df" in locals() else None,
+                portfolio_df,
+            )
+
+            if fresh_candidates_df is not None and not fresh_candidates_df.empty:
+                fresh_candidate_columns = [
+                    "Stock",
+                    "Engines Present",
+                    "Screeners Present",
+                    "Appearance Count",
+                    "Best Conviction Score",
+                    "Best Conviction Level",
+                    "Highest Suggested Position %",
+                    "Final Allocation Action",
+                    "Best Risk Level",
+                    "Worst Risk Level",
+                    "Exit Verdicts",
+                ]
+
+                fresh_candidate_columns = [
+                    column for column in fresh_candidate_columns
+                    if column in fresh_candidates_df.columns
+                ]
+
+                st.dataframe(
+                    fresh_candidates_df[fresh_candidate_columns].head(25),
+                    use_container_width=True,
+                )
+            else:
+                st.info("Fresh candidates need screener files first, then portfolio file.")
+
+            st.divider()
+
             col1, col2 = st.columns(2)
 
             with col1:
@@ -1150,4 +1246,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Risk Engine connection loaded successfully.")
+st.success("Portfolio Compatibility Engine loaded successfully.")
