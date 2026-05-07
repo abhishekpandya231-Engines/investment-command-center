@@ -34,6 +34,28 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
+# Session Helpers
+# --------------------------------------------------
+def get_active_stock_master_df():
+    """Return Stock Master View from local scope/session state if available."""
+    if "stock_master_df" in globals():
+        try:
+            if stock_master_df is not None and not stock_master_df.empty:
+                return stock_master_df
+        except Exception:
+            pass
+
+    return st.session_state.get("stock_master_df", None)
+
+
+def save_stock_master_to_session(stock_master_df):
+    """Persist Stock Master View across tabs and reruns."""
+    if stock_master_df is not None and not stock_master_df.empty:
+        st.session_state["stock_master_df"] = stock_master_df.copy()
+        st.session_state["stock_master_ready"] = True
+
+
+# --------------------------------------------------
 # Helper Functions
 # --------------------------------------------------
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -310,7 +332,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.1.2.2")
+st.caption("Rules-Based Portfolio Intelligence System | v1.1.3")
 
 st.divider()
 
@@ -362,10 +384,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.1.2")
+    st.metric("System Version", "v1.1.3")
 
 with col2:
-    st.metric("Build Stage", "Portfolio Compatibility Live")
+    st.metric("Build Stage", "Portfolio Compatibility Session Fixed")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -947,7 +969,7 @@ with tab2:
 
             portfolio_compatibility_df = evaluate_portfolio_holdings(
                 portfolio_df,
-                stock_master_df if "stock_master_df" in locals() else None,
+                active_stock_master_df if "active_stock_master_df" in locals() else get_active_stock_master_df(),
             )
 
             invested_value = portfolio_df["Invested Value"].sum()
@@ -1027,9 +1049,16 @@ with tab2:
 
             st.subheader("🧩 Portfolio Compatibility Engine")
 
+            active_stock_master_df = get_active_stock_master_df()
+
+            if active_stock_master_df is not None and not active_stock_master_df.empty:
+                st.success("Stock Master View is available for portfolio compatibility.")
+            else:
+                st.warning("Stock Master View is not loaded in this session. Upload the 5 screener CSV files first.")
+
             portfolio_compatibility_df = evaluate_portfolio_holdings(
                 portfolio_df,
-                stock_master_df if "stock_master_df" in locals() else None,
+                active_stock_master_df,
             )
 
             compatibility_summary = summarize_portfolio_compatibility(portfolio_compatibility_df)
@@ -1088,7 +1117,7 @@ with tab2:
             st.subheader("🌱 Fresh Candidates Not Currently Held")
 
             fresh_candidates_df = find_fresh_candidates(
-                stock_master_df if "stock_master_df" in locals() else None,
+                active_stock_master_df if "active_stock_master_df" in locals() else get_active_stock_master_df(),
                 portfolio_df,
             )
 
