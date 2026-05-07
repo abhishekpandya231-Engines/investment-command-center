@@ -357,10 +357,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.8")
+    st.metric("System Version", "v0.9")
 
 with col2:
-    st.metric("Build Stage", "Conviction Engine Connected")
+    st.metric("Build Stage", "Allocation Notes Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -722,13 +722,43 @@ with tab1:
         ]
 
         if not position_candidates_df.empty:
+            sorted_position_candidates_df = position_candidates_df[position_candidate_columns].sort_values(
+                ["Suggested Position Size %", "Risk Score"],
+                ascending=[False, True],
+            )
+
             st.dataframe(
-                position_candidates_df[position_candidate_columns].sort_values(
-                    ["Suggested Position Size %", "Risk Score"],
-                    ascending=[False, True],
-                ),
+                sorted_position_candidates_df,
                 use_container_width=True,
             )
+
+            st.divider()
+
+            st.subheader("🧾 Top Allocation Notes")
+
+            top_allocation_notes_df = sorted_position_candidates_df.head(12)
+
+            for _, position_row in top_allocation_notes_df.iterrows():
+                stock_name = position_row.get("Stock", "Unknown")
+                engine_name = position_row.get("Engine", "Unknown")
+                screener_name = position_row.get("Screener", "Unknown")
+                conviction_level = position_row.get("Conviction Level", "Unknown")
+                conviction_score = position_row.get("Conviction Score", "NA")
+                risk_level = position_row.get("Risk Level", "Unknown")
+                risk_score = position_row.get("Risk Score", "NA")
+                exit_verdict = position_row.get("Exit Verdict", "NA")
+                suggested_position = position_row.get("Suggested Position Size %", "NA")
+                max_cap = position_row.get("Max Position Cap %", "NA")
+                position_action = position_row.get("Position Action", "NA")
+                sizing_reason = position_row.get("Position Sizing Reason", "No sizing reason available.")
+
+                st.info(
+                    f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
+                    f"Conviction: **{conviction_level}** | Score: **{conviction_score}/100**\n\n"
+                    f"Risk: **{risk_level}** | Risk Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
+                    f"Suggested Position: **{suggested_position}%** | Max Cap: **{max_cap}%** | Action: **{position_action}**\n\n"
+                    f"{sizing_reason}"
+                )
         else:
             st.info("No positive position-size candidates detected.")
 
