@@ -4,6 +4,11 @@ from datetime import datetime
 
 from core.exit_engine import evaluate_exit
 from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
+from core.risk_engine import (
+    apply_stock_risk,
+    evaluate_screener_risk_summary,
+    evaluate_portfolio_risk_summary,
+)
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
@@ -831,4 +836,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Risk Engine connection loaded successfully.")
+st.success("Risk Engine + Decision Journal connection loaded successfully.")
