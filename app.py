@@ -39,7 +39,7 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Premium White UI Theme
+# Premium Navigation Theme
 # --------------------------------------------------
 st.markdown(
     """
@@ -553,7 +553,7 @@ st.markdown(
     """
     <div class="icc-hero">
         <div class="icc-hero-title">📊 Investment<br>Command Center</div>
-        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.0</div>
+        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.1</div>
         <div class="icc-pill-row">
             <div class="icc-pill">White Premium UI</div>
             <div class="icc-pill">Rules-Based</div>
@@ -615,10 +615,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.2.0")
+    st.metric("System Version", "v1.2.1")
 
 with col2:
-    st.metric("Build Stage", "Premium White UI")
+    st.metric("Build Stage", "Premium Navigation")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
