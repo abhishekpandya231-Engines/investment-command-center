@@ -1,0 +1,88 @@
+{
+    "metadata": {
+        "file_purpose": "Manual input assumptions for Engine A Market Gate",
+        "source_status": "Manual inputs; not live market data",
+        "last_updated_by_user": "",
+        "notes": "Update these values during Sunday review before using Engine A score for portfolio action."
+    },
+    "engine_a_inputs": {
+        "nifty_pe": {
+            "value": 22.0,
+            "unit": "ratio",
+            "suggested_source": "Trendlyne / NSE / credible market data source",
+            "update_frequency": "Weekly"
+        },
+        "nifty_above_200dma": {
+            "value": "Yes",
+            "unit": "Yes/No",
+            "suggested_source": "Charting platform / TradingView / Trendlyne",
+            "update_frequency": "Weekly"
+        },
+        "percent_stocks_above_200dma": {
+            "value": 55.0,
+            "unit": "percent",
+            "suggested_source": "Market breadth screener / Trendlyne / TradingView breadth data",
+            "update_frequency": "Weekly"
+        },
+        "india_vix": {
+            "value": 15.0,
+            "unit": "index",
+            "suggested_source": "NSE India / market data source",
+            "update_frequency": "Weekly"
+        },
+        "fii_30d": {
+            "value": 0.0,
+            "unit": "INR crore",
+            "suggested_source": "NSDL / NSE / market flow data",
+            "update_frequency": "Weekly"
+        },
+        "dii_30d": {
+            "value": 10000.0,
+            "unit": "INR crore",
+            "suggested_source": "NSE / AMFI / market flow data",
+            "update_frequency": "Weekly"
+        },
+        "rbi_stance": {
+            "value": "Neutral",
+            "unit": "text",
+            "suggested_source": "RBI MPC statement",
+            "update_frequency": "After every RBI policy"
+        },
+        "cpi": {
+            "value": 4.8,
+            "unit": "percent",
+            "suggested_source": "MOSPI / RBI / Trading Economics",
+            "update_frequency": "Monthly"
+        },
+        "pmi": {
+            "value": 55.0,
+            "unit": "index",
+            "suggested_source": "S&P Global India PMI / Trading Economics",
+            "update_frequency": "Monthly"
+        },
+        "us_10y": {
+            "value": 4.3,
+            "unit": "percent",
+            "suggested_source": "US Treasury / Trading Economics / MarketWatch",
+            "update_frequency": "Weekly"
+        },
+        "dxy": {
+            "value": 104.0,
+            "unit": "index",
+            "suggested_source": "Market data source / TradingView",
+            "update_frequency": "Weekly"
+        },
+        "inr_change_percent": {
+            "value": 0.5,
+            "unit": "percent",
+            "suggested_source": "USD/INR weekly or monthly change from market data source",
+            "update_frequency": "Weekly"
+        },
+        "brent_crude": {
+            "value": 85.0,
+            "unit": "USD/barrel",
+            "suggested_source": "ICE Brent / Trading Economics / market data source",
+            "update_frequency": "Weekly"
+        }
+    }
+}
