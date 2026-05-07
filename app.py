@@ -13,6 +13,10 @@ from core.position_sizing import (
     apply_position_sizing,
     summarize_position_sizing,
 )
+from core.conviction_engine import (
+    apply_conviction_engine,
+    summarize_conviction,
+)
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
@@ -353,10 +357,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.7")
+    st.metric("System Version", "v0.8")
 
 with col2:
-    st.metric("Build Stage", "Position Sizing Connected")
+    st.metric("Build Stage", "Conviction Engine Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -443,6 +447,10 @@ with tab1:
 
         combined_df = pd.concat(all_screeners, ignore_index=True)
         combined_df = apply_stock_risk(combined_df)
+        combined_df = apply_conviction_engine(
+            combined_df,
+            market_regime=engine_a_result["regime"],
+        )
         combined_df = apply_position_sizing(
             combined_df,
             engine_a_score=engine_a_score,
@@ -578,6 +586,79 @@ with tab1:
                     )
         else:
             st.success("No moderate/high/critical risk rows detected.")
+
+        st.divider()
+
+        st.subheader("🧠 Conviction Engine Summary")
+
+        conviction_summary = summarize_conviction(combined_df)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("High Conviction", conviction_summary["high_conviction"])
+
+        with col2:
+            st.metric("Strong", conviction_summary["strong"])
+
+        with col3:
+            st.metric("Medium", conviction_summary["medium"])
+
+        with col4:
+            st.metric("Watchlist", conviction_summary["watchlist"])
+
+        conviction_level_df = (
+            combined_df.groupby(["Engine", "Conviction Level"], as_index=False)
+            .size()
+            .rename(columns={"size": "Count"})
+            .sort_values(["Engine", "Conviction Level"])
+        )
+
+        st.dataframe(conviction_level_df, use_container_width=True)
+
+        st.divider()
+
+        st.subheader("🏆 Top Conviction Candidates")
+
+        conviction_candidate_columns = [
+            "Stock",
+            "Engine",
+            "Screener",
+            "Conviction Score",
+            "Conviction Level",
+            "Conviction Notes",
+            "Rule Verdict",
+            "Exit Verdict",
+            "Risk Level",
+            "Risk Score",
+            "Suggested Position Size %",
+            "Position Action",
+            "Market Cap Category",
+            "PE TTM",
+            "ROE Ann  %",
+            "Piotroski Score",
+            "Durability Score",
+            "Momentum Score",
+        ]
+
+        conviction_candidate_columns = [
+            col for col in conviction_candidate_columns if col in combined_df.columns
+        ]
+
+        top_conviction_df = combined_df[
+            combined_df["Conviction Level"].isin(["HIGH CONVICTION", "STRONG", "MEDIUM"])
+        ].copy()
+
+        if not top_conviction_df.empty:
+            st.dataframe(
+                top_conviction_df[conviction_candidate_columns].sort_values(
+                    ["Conviction Score", "Risk Score"],
+                    ascending=[False, True],
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.info("No medium/strong/high-conviction candidates detected.")
 
         st.divider()
 
@@ -809,6 +890,10 @@ with tab2:
             portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
             portfolio_df = apply_exit_engine(portfolio_df, engine_a_score=engine_a_score)
             portfolio_df = apply_stock_risk(portfolio_df)
+            portfolio_df = apply_conviction_engine(
+                portfolio_df,
+                market_regime=engine_a_result["regime"],
+            )
             portfolio_df = apply_position_sizing(
                 portfolio_df,
                 engine_a_score=engine_a_score,
@@ -1007,6 +1092,7 @@ modules = pd.DataFrame(
         {"Module": "Engine D Compounders", "Status": "Basic Rules"},
         {"Module": "Risk Engine", "Status": "Connected v0.1"},
         {"Module": "Position Sizing Engine", "Status": "Connected v0.1"},
+        {"Module": "Conviction Engine", "Status": "Connected v0.1"},
         {"Module": "Decision Journal", "Status": "Connected v0.1"},
         {"Module": "AI Analyst Layer", "Status": "Not Started"},
     ]
