@@ -357,10 +357,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.9")
+    st.metric("System Version", "v0.9.1")
 
 with col2:
-    st.metric("Build Stage", "Allocation Notes Connected")
+    st.metric("Build Stage", "Allocation Notes Fixed")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -705,6 +705,9 @@ with tab1:
             "Exit Verdict",
             "Risk Level",
             "Risk Score",
+            "Conviction Score",
+            "Conviction Level",
+            "Conviction Notes",
             "Suggested Position Size %",
             "Max Position Cap %",
             "Position Action",
@@ -744,6 +747,13 @@ with tab1:
                 screener_name = position_row.get("Screener", "Unknown")
                 conviction_level = position_row.get("Conviction Level", "Unknown")
                 conviction_score = position_row.get("Conviction Score", "NA")
+
+                if conviction_level == "Unknown" and "Conviction" in str(position_row.get("Position Sizing Reason", "")):
+                    sizing_reason_text = str(position_row.get("Position Sizing Reason", ""))
+                    try:
+                        conviction_level = sizing_reason_text.split("Conviction ")[1].split(" with multiplier")[0]
+                    except Exception:
+                        conviction_level = "Unknown"
                 risk_level = position_row.get("Risk Level", "Unknown")
                 risk_score = position_row.get("Risk Score", "NA")
                 exit_verdict = position_row.get("Exit Verdict", "NA")
