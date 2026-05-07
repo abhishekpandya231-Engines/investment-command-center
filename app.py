@@ -2,15 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from core.portfolio_context import (
-    validate_portfolio_columns,
-    calculate_position_values,
-    calculate_portfolio_summary,
-    calculate_sector_exposure,
-    calculate_market_cap_exposure,
-    generate_portfolio_risk_flags,
-)
-
 # --------------------------------------------------
 # Page Setup
 # --------------------------------------------------
@@ -21,6 +12,267 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
+# Helper Functions
+# --------------------------------------------------
+PORTFOLIO_REQUIRED_COLUMNS = [
+    "Stock",
+    "Engine",
+    "Sector",
+    "Market Cap Category",
+    "Quantity",
+    "Buy Price",
+    "Current Price",
+]
+
+SCREENER_KEY_COLUMNS = [
+    "Stock",
+    "Sector",
+    "LTP",
+    "Market Cap",
+    "PE TTM",
+    "PEG TTM",
+    "ROE Ann  %",
+    "Piotroski Score",
+    "Durability Score",
+    "Momentum Score",
+    "Total Debt to Total Equity Ann ",
+    "Net Profit Ann  YoY Growth %",
+    "Net Profit 3Y Growth %",
+    "Revenue QoQ Growth %",
+    "1Y Low",
+    "1Y High",
+    "NSE Code",
+]
+
+
+def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = [str(col).strip() for col in df.columns]
+    return df
+
+
+def to_number(series):
+    return pd.to_numeric(series, errors="coerce")
+
+
+def infer_engine_from_filename(filename: str) -> str:
+    name = filename.lower()
+
+    if "mom" in name or "momentum" in name:
+        return "B"
+    if name.startswith("c") or "_c" in name or "value" in name:
+        return "C"
+    if name.startswith("d") or "_d" in name or "compound" in name:
+        return "D"
+
+    return "Unknown"
+
+
+def infer_screener_name(filename: str) -> str:
+    name = filename.lower()
+
+    if "mom" in name:
+        return "Momentum"
+    if "c1" in name:
+        return "Value C1"
+    if "c2" in name:
+        return "Value C2"
+    if "d1" in name:
+        return "Compounder D1"
+    if "d2" in name:
+        return "Compounder D2"
+
+    return filename.replace(".csv", "")
+
+
+def classify_market_cap(market_cap_value) -> str:
+    """
+    Assumes Market Cap is in Rs Crore, as commonly exported by Trendlyne.
+    """
+    try:
+        value = float(market_cap_value)
+    except Exception:
+        return "Unknown"
+
+    if value >= 50000:
+        return "Large Cap"
+    if value >= 10000:
+        return "Mid Cap"
+    return "Small Cap"
+
+
+def prepare_screener_df(df: pd.DataFrame, filename: str) -> pd.DataFrame:
+    df = clean_columns(df)
+    df = df.copy()
+
+    df["Source File"] = filename
+    df["Engine"] = infer_engine_from_filename(filename)
+    df["Screener"] = infer_screener_name(filename)
+
+    if "Market Cap" in df.columns:
+        df["Market Cap Category"] = df["Market Cap"].apply(classify_market_cap)
+    else:
+        df["Market Cap Category"] = "Unknown"
+
+    for col in [
+        "LTP",
+        "Market Cap",
+        "PE TTM",
+        "PEG TTM",
+        "ROE Ann  %",
+        "Piotroski Score",
+        "Durability Score",
+        "Momentum Score",
+        "Total Debt to Total Equity Ann ",
+        "Net Profit Ann  YoY Growth %",
+        "Net Profit 3Y Growth %",
+        "Revenue QoQ Growth %",
+        "1Y Low",
+        "1Y High",
+    ]:
+        if col in df.columns:
+            df[col] = to_number(df[col])
+
+    return df
+
+
+def generate_screener_verdict(row) -> str:
+    engine = row.get("Engine", "Unknown")
+
+    durability = row.get("Durability Score", None)
+    momentum = row.get("Momentum Score", None)
+    pe = row.get("PE TTM", None)
+    peg = row.get("PEG TTM", None)
+    roe = row.get("ROE Ann  %", None)
+    pio = row.get("Piotroski Score", None)
+    debt = row.get("Total Debt to Total Equity Ann ", None)
+    growth = row.get("Net Profit Ann  YoY Growth %", None)
+
+    try:
+        durability = float(durability)
+    except Exception:
+        durability = None
+
+    try:
+        momentum = float(momentum)
+    except Exception:
+        momentum = None
+
+    try:
+        pe = float(pe)
+    except Exception:
+        pe = None
+
+    try:
+        peg = float(peg)
+    except Exception:
+        peg = None
+
+    try:
+        roe = float(roe)
+    except Exception:
+        roe = None
+
+    try:
+        pio = float(pio)
+    except Exception:
+        pio = None
+
+    try:
+        debt = float(debt)
+    except Exception:
+        debt = None
+
+    try:
+        growth = float(growth)
+    except Exception:
+        growth = None
+
+    if engine == "B":
+        if durability is not None and momentum is not None:
+            if durability > 55 and momentum > 59:
+                return "GREEN GATE"
+            if durability < 45 or momentum < 49:
+                return "RED GATE"
+            return "GREY GATE"
+        return "DATA CHECK"
+
+    if engine == "C":
+        if roe is not None and pe is not None and pio is not None:
+            if roe > 15 and pe < 25 and pio > 6:
+                return "VALUE QUALIFIED"
+            return "VALUE WATCH"
+        return "DATA CHECK"
+
+    if engine == "D":
+        if roe is not None and pio is not None and debt is not None and growth is not None:
+            if roe > 15 and pio > 6 and debt < 1 and growth > 15:
+                if peg is not None and peg <= 1.5:
+                    return "COMPOUNDER QUALIFIED"
+                return "GROWTH QUALIFIED"
+            return "COMPOUNDER WATCH"
+        return "DATA CHECK"
+
+    return "UNCLASSIFIED"
+
+
+def calculate_portfolio_from_holdings(df: pd.DataFrame) -> pd.DataFrame:
+    df = clean_columns(df)
+    df = df.copy()
+
+    df["Quantity"] = to_number(df["Quantity"]).fillna(0)
+    df["Buy Price"] = to_number(df["Buy Price"]).fillna(0)
+    df["Current Price"] = to_number(df["Current Price"]).fillna(0)
+
+    df["Invested Value"] = df["Quantity"] * df["Buy Price"]
+    df["Current Value"] = df["Quantity"] * df["Current Price"]
+    df["Unrealised P&L"] = df["Current Value"] - df["Invested Value"]
+    df["P&L %"] = df.apply(
+        lambda row: (row["Unrealised P&L"] / row["Invested Value"] * 100)
+        if row["Invested Value"] > 0
+        else 0,
+        axis=1,
+    )
+
+    total_current = df["Current Value"].sum()
+    df["Portfolio Weight %"] = df["Current Value"].apply(
+        lambda value: (value / total_current * 100) if total_current > 0 else 0
+    )
+
+    return df
+
+
+def portfolio_risk_flags(df: pd.DataFrame) -> list:
+    flags = []
+
+    if "Portfolio Weight %" in df.columns:
+        high_stock = df[df["Portfolio Weight %"] > 10]
+        for _, row in high_stock.iterrows():
+            flags.append(f"{row['Stock']} is {row['Portfolio Weight %']:.1f}% of portfolio. Single-stock cap check required.")
+
+    if "Sector" in df.columns:
+        sector = df.groupby("Sector", as_index=False)["Current Value"].sum()
+        total = sector["Current Value"].sum()
+        sector["Sector Weight %"] = sector["Current Value"] / total * 100 if total > 0 else 0
+        high_sector = sector[sector["Sector Weight %"] > 30]
+        for _, row in high_sector.iterrows():
+            flags.append(f"{row['Sector']} is {row['Sector Weight %']:.1f}% of portfolio. Sector concentration check required.")
+
+    if "Market Cap Category" in df.columns:
+        mcap = df.groupby("Market Cap Category", as_index=False)["Current Value"].sum()
+        total = mcap["Current Value"].sum()
+        mcap["Market Cap Weight %"] = mcap["Current Value"] / total * 100 if total > 0 else 0
+        small = mcap[mcap["Market Cap Category"].str.lower() == "small cap"]
+        if not small.empty and small.iloc[0]["Market Cap Weight %"] > 50:
+            flags.append(f"Small-cap exposure is {small.iloc[0]['Market Cap Weight %']:.1f}%, above 50% threshold.")
+
+    if not flags:
+        flags.append("No major concentration risk flags detected.")
+
+    return flags
+
+
+# --------------------------------------------------
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
@@ -28,16 +280,13 @@ st.caption("Rules-Based Portfolio Intelligence System | v1.0")
 
 st.divider()
 
-# --------------------------------------------------
-# System Status
-# --------------------------------------------------
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("System Version", "v1.0")
 
 with col2:
-    st.metric("Build Stage", "Portfolio Upload")
+    st.metric("Build Stage", "Multi-CSV Upload")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -45,149 +294,232 @@ with col3:
 st.divider()
 
 # --------------------------------------------------
-# Portfolio Upload Section
+# Tabs
 # --------------------------------------------------
-st.subheader("📁 Portfolio Upload")
+tab1, tab2 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload"])
 
-st.write(
-    """
-    Upload your portfolio CSV with the required columns:
+# --------------------------------------------------
+# Screener Upload Tab
+# --------------------------------------------------
+with tab1:
+    st.subheader("📂 Multi-Screener Upload")
 
-    **Stock, Engine, Sector, Market Cap Category, Quantity, Buy Price, Current Price**
-    """
-)
+    st.write(
+        """
+        Upload your Trendlyne screener CSV files here.
 
-uploaded_file = st.file_uploader(
-    "Upload portfolio CSV",
-    type=["csv"]
-)
+        Supported files:
+        **Mom.csv, C1.csv, C2.csv, D1.csv, D2.csv**
 
-if uploaded_file is not None:
-    portfolio_df = pd.read_csv(uploaded_file)
-
-    missing_columns = validate_portfolio_columns(portfolio_df)
-
-    if missing_columns:
-        st.error("Your uploaded file is missing required columns:")
-        st.write(missing_columns)
-        st.stop()
-
-    portfolio_df = calculate_position_values(portfolio_df)
-    summary = calculate_portfolio_summary(portfolio_df)
-
-    st.success("Portfolio uploaded successfully.")
-
-    # --------------------------------------------------
-    # Portfolio Summary
-    # --------------------------------------------------
-    st.subheader("📌 Portfolio Summary")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            "Invested Value",
-            f"₹{summary['invested_value']:,.0f}"
-        )
-
-    with col2:
-        st.metric(
-            "Current Value",
-            f"₹{summary['current_value']:,.0f}"
-        )
-
-    with col3:
-        st.metric(
-            "Unrealised P&L",
-            f"₹{summary['unrealised_pnl']:,.0f}",
-            f"{summary['pnl_percent']:.2f}%"
-        )
-
-    with col4:
-        st.metric(
-            "Positions",
-            summary["number_of_positions"]
-        )
-
-    st.divider()
-
-    # --------------------------------------------------
-    # Holdings Table
-    # --------------------------------------------------
-    st.subheader("📊 Holdings")
-
-    display_columns = [
-        "Stock",
-        "Engine",
-        "Sector",
-        "Market Cap Category",
-        "Quantity",
-        "Buy Price",
-        "Current Price",
-        "Invested Value",
-        "Current Value",
-        "Unrealised P&L",
-        "P&L %",
-    ]
-
-    st.dataframe(
-        portfolio_df[display_columns],
-        use_container_width=True
+        This section is for **screener intelligence**, not holdings-level portfolio P&L.
+        """
     )
 
-    st.divider()
+    screener_files = st.file_uploader(
+        "Upload multiple screener CSV files",
+        type=["csv"],
+        accept_multiple_files=True,
+        key="screener_files",
+    )
 
-    # --------------------------------------------------
-    # Exposure Analysis
-    # --------------------------------------------------
-    st.subheader("🧭 Portfolio Exposure")
+    if screener_files:
+        all_screeners = []
 
-    sector_df = calculate_sector_exposure(portfolio_df)
-    market_cap_df = calculate_market_cap_exposure(portfolio_df)
+        for uploaded_file in screener_files:
+            raw_df = pd.read_csv(uploaded_file)
+            prepared_df = prepare_screener_df(raw_df, uploaded_file.name)
+            prepared_df["Rule Verdict"] = prepared_df.apply(generate_screener_verdict, axis=1)
+            all_screeners.append(prepared_df)
 
-    col1, col2 = st.columns(2)
+        combined_df = pd.concat(all_screeners, ignore_index=True)
 
-    with col1:
-        st.write("### Sector Exposure")
-        st.dataframe(sector_df, use_container_width=True)
+        st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
+        st.metric("Total Screener Rows", len(combined_df))
 
-    with col2:
-        st.write("### Market Cap Exposure")
-        st.dataframe(market_cap_df, use_container_width=True)
+        col1, col2, col3, col4 = st.columns(4)
 
-    st.divider()
+        with col1:
+            st.metric("Unique Stocks", combined_df["Stock"].nunique())
 
-    # --------------------------------------------------
-    # Risk Flags
-    # --------------------------------------------------
-    st.subheader("🚨 Risk Flags")
+        with col2:
+            st.metric("Momentum Rows", int((combined_df["Engine"] == "B").sum()))
 
-    risk_flags = generate_portfolio_risk_flags(portfolio_df)
+        with col3:
+            st.metric("Value Rows", int((combined_df["Engine"] == "C").sum()))
 
-    for flag in risk_flags:
-        if "No major" in flag:
-            st.success(flag)
+        with col4:
+            st.metric("Compounder Rows", int((combined_df["Engine"] == "D").sum()))
+
+        st.divider()
+
+        st.subheader("🔥 Cross-Engine Overlap")
+
+        overlap_df = (
+            combined_df.groupby("Stock", as_index=False)
+            .agg(
+                Engines=("Engine", lambda x: ", ".join(sorted(set(x)))),
+                Screeners=("Screener", lambda x: ", ".join(sorted(set(x)))),
+                Count=("Screener", "nunique"),
+                Sector=("Sector", "first"),
+                LTP=("LTP", "first"),
+                Market_Cap=("Market Cap", "first"),
+                PE=("PE TTM", "first"),
+                PEG=("PEG TTM", "first"),
+                ROE=("ROE Ann  %", "first"),
+                Piotroski=("Piotroski Score", "first"),
+                Durability=("Durability Score", "first"),
+                Momentum=("Momentum Score", "first"),
+            )
+            .sort_values(["Count", "Market_Cap"], ascending=[False, False])
+        )
+
+        power_picks = overlap_df[overlap_df["Count"] >= 2]
+
+        if not power_picks.empty:
+            st.success("Stocks appearing in multiple screeners detected.")
+            st.dataframe(power_picks, use_container_width=True)
         else:
-            st.warning(flag)
+            st.info("No multi-screener overlaps detected yet.")
 
-else:
-    st.info("Upload a portfolio CSV to begin.")
+        st.divider()
 
-    st.subheader("Required CSV Format")
+        st.subheader("📊 Combined Screener Table")
 
-    sample_df = pd.DataFrame(
-        {
-            "Stock": ["Example Stock"],
-            "Engine": ["B"],
-            "Sector": ["Industrials"],
-            "Market Cap Category": ["Small Cap"],
-            "Quantity": [10],
-            "Buy Price": [100],
-            "Current Price": [110],
-        }
+        available_cols = [col for col in SCREENER_KEY_COLUMNS if col in combined_df.columns]
+
+        display_cols = [
+            "Source File",
+            "Engine",
+            "Screener",
+            "Rule Verdict",
+        ] + available_cols + ["Market Cap Category"]
+
+        st.dataframe(
+            combined_df[display_cols],
+            use_container_width=True,
+        )
+
+        st.divider()
+
+        st.subheader("🧭 Screener Sector Exposure")
+
+        if "Sector" in combined_df.columns:
+            sector_counts = (
+                combined_df.groupby(["Engine", "Sector"], as_index=False)
+                .size()
+                .rename(columns={"size": "Stock Count"})
+                .sort_values("Stock Count", ascending=False)
+            )
+            st.dataframe(sector_counts, use_container_width=True)
+
+    else:
+        st.info("Upload Mom.csv, C1.csv, C2.csv, D1.csv, and D2.csv to begin screener intelligence.")
+
+# --------------------------------------------------
+# Portfolio Upload Tab
+# --------------------------------------------------
+with tab2:
+    st.subheader("📁 Portfolio Upload")
+
+    st.write(
+        """
+        Upload your holdings-level portfolio CSV here.
+
+        Required columns:
+
+        **Stock, Engine, Sector, Market Cap Category, Quantity, Buy Price, Current Price**
+        """
     )
 
-    st.dataframe(sample_df, use_container_width=True)
+    portfolio_file = st.file_uploader(
+        "Upload portfolio CSV",
+        type=["csv"],
+        accept_multiple_files=False,
+        key="portfolio_file",
+    )
+
+    if portfolio_file is not None:
+        portfolio_df = clean_columns(pd.read_csv(portfolio_file))
+
+        missing_columns = [
+            column for column in PORTFOLIO_REQUIRED_COLUMNS if column not in portfolio_df.columns
+        ]
+
+        if missing_columns:
+            st.error("Your uploaded file is missing required portfolio columns:")
+            st.write(missing_columns)
+            st.warning("This looks like a screener CSV, not a holdings portfolio CSV. Please upload screener files in the Screener Upload tab.")
+        else:
+            portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
+
+            invested_value = portfolio_df["Invested Value"].sum()
+            current_value = portfolio_df["Current Value"].sum()
+            pnl = current_value - invested_value
+            pnl_pct = (pnl / invested_value * 100) if invested_value > 0 else 0
+
+            st.success("Portfolio uploaded successfully.")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Invested Value", f"₹{invested_value:,.0f}")
+
+            with col2:
+                st.metric("Current Value", f"₹{current_value:,.0f}")
+
+            with col3:
+                st.metric("Unrealised P&L", f"₹{pnl:,.0f}", f"{pnl_pct:.2f}%")
+
+            with col4:
+                st.metric("Positions", len(portfolio_df))
+
+            st.divider()
+
+            st.subheader("📊 Holdings")
+            st.dataframe(portfolio_df, use_container_width=True)
+
+            st.divider()
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.write("### Sector Exposure")
+                sector_df = portfolio_df.groupby("Sector", as_index=False)["Current Value"].sum()
+                sector_df["Sector Weight %"] = sector_df["Current Value"] / current_value * 100 if current_value > 0 else 0
+                st.dataframe(sector_df.sort_values("Sector Weight %", ascending=False), use_container_width=True)
+
+            with col2:
+                st.write("### Market Cap Exposure")
+                mcap_df = portfolio_df.groupby("Market Cap Category", as_index=False)["Current Value"].sum()
+                mcap_df["Market Cap Weight %"] = mcap_df["Current Value"] / current_value * 100 if current_value > 0 else 0
+                st.dataframe(mcap_df.sort_values("Market Cap Weight %", ascending=False), use_container_width=True)
+
+            st.divider()
+
+            st.subheader("🚨 Risk Flags")
+            for flag in portfolio_risk_flags(portfolio_df):
+                if "No major" in flag:
+                    st.success(flag)
+                else:
+                    st.warning(flag)
+    else:
+        st.info("Upload a holdings-level portfolio CSV to begin.")
+
+        st.subheader("Required Portfolio CSV Format")
+
+        sample_df = pd.DataFrame(
+            {
+                "Stock": ["Example Stock"],
+                "Engine": ["B"],
+                "Sector": ["Industrials"],
+                "Market Cap Category": ["Small Cap"],
+                "Quantity": [10],
+                "Buy Price": [100],
+                "Current Price": [110],
+            }
+        )
+
+        st.dataframe(sample_df, use_container_width=True)
 
 st.divider()
 
@@ -199,6 +531,7 @@ st.subheader("Current Build Modules")
 modules = pd.DataFrame(
     {
         "Module": [
+            "Multi-Screener Upload",
             "Portfolio Command Center",
             "Exit Engine",
             "Engine A Market Gate",
@@ -209,6 +542,7 @@ modules = pd.DataFrame(
             "AI Analyst Layer",
         ],
         "Status": [
+            "In Progress",
             "In Progress",
             "Not Started",
             "Not Started",
@@ -223,4 +557,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Portfolio upload module loaded successfully.")
+st.success("Multi-upload module loaded successfully.")
