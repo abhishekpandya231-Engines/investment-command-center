@@ -9,6 +9,10 @@ from core.risk_engine import (
     evaluate_screener_risk_summary,
     evaluate_portfolio_risk_summary,
 )
+from core.position_sizing import (
+    apply_position_sizing,
+    summarize_position_sizing,
+)
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
@@ -349,10 +353,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.6")
+    st.metric("System Version", "v0.7")
 
 with col2:
-    st.metric("Build Stage", "Risk + Journal Connected")
+    st.metric("Build Stage", "Position Sizing Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -439,6 +443,11 @@ with tab1:
 
         combined_df = pd.concat(all_screeners, ignore_index=True)
         combined_df = apply_stock_risk(combined_df)
+        combined_df = apply_position_sizing(
+            combined_df,
+            engine_a_score=engine_a_score,
+            market_regime=engine_a_result["regime"],
+        )
 
         st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
 
@@ -569,6 +578,78 @@ with tab1:
                     )
         else:
             st.success("No moderate/high/critical risk rows detected.")
+
+        st.divider()
+
+        st.subheader("📏 Position Sizing Engine Summary")
+
+        sizing_summary = summarize_position_sizing(combined_df)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Track Only", sizing_summary["track_only"])
+
+        with col2:
+            st.metric("Starter Positions", sizing_summary["starter_position"])
+
+        with col3:
+            st.metric("Normal Positions", sizing_summary["normal_position"])
+
+        with col4:
+            st.metric("Avoid / Exit", sizing_summary["avoid_or_exit"])
+
+        position_action_df = (
+            combined_df.groupby(["Engine", "Position Action"], as_index=False)
+            .size()
+            .rename(columns={"size": "Count"})
+            .sort_values(["Engine", "Position Action"])
+        )
+
+        st.dataframe(position_action_df, use_container_width=True)
+
+        st.divider()
+
+        st.subheader("🎯 Top Position Candidates")
+
+        position_candidates_df = combined_df[
+            combined_df["Suggested Position Size %"] > 0
+        ].copy()
+
+        position_candidate_columns = [
+            "Stock",
+            "Engine",
+            "Screener",
+            "Rule Verdict",
+            "Exit Verdict",
+            "Risk Level",
+            "Risk Score",
+            "Suggested Position Size %",
+            "Max Position Cap %",
+            "Position Action",
+            "Position Sizing Reason",
+            "Market Cap Category",
+            "PE TTM",
+            "ROE Ann  %",
+            "Piotroski Score",
+            "Durability Score",
+            "Momentum Score",
+        ]
+
+        position_candidate_columns = [
+            col for col in position_candidate_columns if col in position_candidates_df.columns
+        ]
+
+        if not position_candidates_df.empty:
+            st.dataframe(
+                position_candidates_df[position_candidate_columns].sort_values(
+                    ["Suggested Position Size %", "Risk Score"],
+                    ascending=[False, True],
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.info("No positive position-size candidates detected.")
 
         st.divider()
 
@@ -728,6 +809,11 @@ with tab2:
             portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
             portfolio_df = apply_exit_engine(portfolio_df, engine_a_score=engine_a_score)
             portfolio_df = apply_stock_risk(portfolio_df)
+            portfolio_df = apply_position_sizing(
+                portfolio_df,
+                engine_a_score=engine_a_score,
+                market_regime=engine_a_result["regime"],
+            )
 
             invested_value = portfolio_df["Invested Value"].sum()
             current_value = portfolio_df["Current Value"].sum()
@@ -779,6 +865,23 @@ with tab2:
                     st.warning(note)
                 else:
                     st.info(note)
+
+            st.divider()
+
+            st.subheader("📏 Portfolio Position Sizing")
+
+            portfolio_sizing_summary = summarize_position_sizing(portfolio_df)
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Starter Positions", portfolio_sizing_summary["starter_position"])
+
+            with col2:
+                st.metric("Normal Positions", portfolio_sizing_summary["normal_position"])
+
+            with col3:
+                st.metric("Avoid / Exit", portfolio_sizing_summary["avoid_or_exit"])
 
             st.divider()
 
@@ -903,6 +1006,7 @@ modules = pd.DataFrame(
         {"Module": "Engine C Value", "Status": "Basic Rules"},
         {"Module": "Engine D Compounders", "Status": "Basic Rules"},
         {"Module": "Risk Engine", "Status": "Connected v0.1"},
+        {"Module": "Position Sizing Engine", "Status": "Connected v0.1"},
         {"Module": "Decision Journal", "Status": "Connected v0.1"},
         {"Module": "AI Analyst Layer", "Status": "Not Started"},
     ]
