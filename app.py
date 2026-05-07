@@ -4,11 +4,6 @@ from datetime import datetime
 
 from core.exit_engine import evaluate_exit
 from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
-from core.risk_engine import (
-    apply_stock_risk,
-    evaluate_screener_risk_summary,
-    evaluate_portfolio_risk_summary,
-)
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
@@ -498,6 +493,50 @@ with tab1:
 
         st.divider()
 
+        st.subheader("🧨 High / Moderate Risk Watchlist")
+
+        risk_watchlist_df = combined_df[
+            combined_df["Risk Level"].isin(["HIGH", "CRITICAL", "MODERATE"])
+        ].copy()
+
+        risk_watchlist_columns = [
+            "Stock",
+            "Engine",
+            "Screener",
+            "Risk Level",
+            "Risk Score",
+            "Risk Notes",
+            "Exit Verdict",
+            "Rule Verdict",
+            "Market Cap Category",
+            "PE TTM",
+            "PEG TTM",
+            "ROE Ann  %",
+            "Piotroski Score",
+            "Total Debt to Total Equity Ann ",
+            "Durability Score",
+            "Momentum Score",
+            "Net Profit Ann  YoY Growth %",
+            "Revenue QoQ Growth %",
+        ]
+
+        risk_watchlist_columns = [
+            col for col in risk_watchlist_columns if col in risk_watchlist_df.columns
+        ]
+
+        if not risk_watchlist_df.empty:
+            st.dataframe(
+                risk_watchlist_df[risk_watchlist_columns].sort_values(
+                    ["Risk Level", "Risk Score", "Stock"],
+                    ascending=[True, False, True],
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.success("No moderate/high/critical risk rows detected.")
+
+        st.divider()
+
         st.subheader("🚦 Exit Engine Verdict Summary")
 
         verdict_summary = (
@@ -836,4 +875,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Risk Engine + Decision Journal connection loaded successfully.")
+st.success("Risk Engine connection loaded successfully.")
