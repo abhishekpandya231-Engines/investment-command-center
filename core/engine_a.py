@@ -1,14 +1,25 @@
 """
-Engine A Market Gate v0.1
+Engine A Market Gate v0.2
 Investment Command Center
 
 Purpose:
 Converts market inputs into a 0-100 market score and regime.
 
-This is the Director Engine:
-- It decides whether equity deployment is allowed.
-- It controls position sizing.
-- It applies safety overrides.
+v0.2 upgrade:
+- Adds India Rates / G-sec component.
+- Rebalances Engine A to total 100 points.
+
+Component weights:
+Valuation 15
+Trend 15
+Breadth 12
+Volatility 10
+Flows 12
+Macro 10
+India Rates / G-sec 10
+Global 8
+Crude 8
+Total 100
 """
 
 
@@ -119,7 +130,7 @@ def score_flows(fii_30d, dii_30d):
 
 def score_macro(rbi_stance, cpi, pmi):
     """
-    Macro score out of 12.
+    Macro score out of 10.
     Combines RBI stance, CPI and PMI.
     """
     score = 0
@@ -128,21 +139,21 @@ def score_macro(rbi_stance, cpi, pmi):
     cpi_value = safe_float(cpi, default=5)
     pmi_value = safe_float(pmi, default=52)
 
-    # RBI stance: max 4
+    # RBI stance: max 3
     if stance in ["accommodative", "dovish"]:
-        score += 4
-    elif stance in ["neutral"]:
         score += 3
+    elif stance in ["neutral"]:
+        score += 2
     elif stance in ["withdrawal", "tightening", "hawkish"]:
         score += 1
     else:
-        score += 2
+        score += 1
 
-    # CPI: max 4
+    # CPI: max 3
     if cpi_value <= 4.5:
-        score += 4
-    elif cpi_value <= 5.5:
         score += 3
+    elif cpi_value <= 5.5:
+        score += 2
     elif cpi_value <= 6.5:
         score += 1
     else:
@@ -158,12 +169,50 @@ def score_macro(rbi_stance, cpi, pmi):
     else:
         score += 0
 
-    return min(score, 12)
+    return min(score, 10)
+
+
+def score_india_rates(india_10y_gsec, india_10y_gsec_30d_change_bps):
+    """
+    India Rates / G-sec score out of 10.
+
+    Inputs:
+    - india_10y_gsec: current Indian 10Y G-sec yield in %
+    - india_10y_gsec_30d_change_bps: 30-day change in basis points
+
+    Lower yields and falling/stable yields are better for equities.
+    """
+    yield_value = safe_float(india_10y_gsec, default=7.1)
+    change_bps = safe_float(india_10y_gsec_30d_change_bps, default=0)
+
+    # Yield level: max 7
+    if yield_value <= 6.75:
+        score = 7
+    elif yield_value <= 7.10:
+        score = 6
+    elif yield_value <= 7.40:
+        score = 4
+    elif yield_value <= 7.75:
+        score = 2
+    else:
+        score = 0
+
+    # Yield direction: max 3
+    if change_bps <= -15:
+        score += 3
+    elif change_bps <= 10:
+        score += 2
+    elif change_bps <= 25:
+        score += 1
+    else:
+        score += 0
+
+    return min(score, 10)
 
 
 def score_global(us_10y, dxy, inr_change_percent):
     """
-    Global score out of 12.
+    Global score out of 8.
     Lower US10Y, softer DXY and stable INR are better.
     """
     score = 0
@@ -172,55 +221,53 @@ def score_global(us_10y, dxy, inr_change_percent):
     dxy_value = safe_float(dxy, default=104)
     inr_change = safe_float(inr_change_percent, default=0)
 
-    # US 10Y: max 4
+    # US 10Y: max 3
     if us10y <= 4.0:
-        score += 4
-    elif us10y <= 4.5:
         score += 3
+    elif us10y <= 4.5:
+        score += 2
     elif us10y <= 5.0:
         score += 1
     else:
         score += 0
 
-    # DXY: max 4
+    # DXY: max 3
     if dxy_value <= 102:
-        score += 4
-    elif dxy_value <= 105:
         score += 3
+    elif dxy_value <= 105:
+        score += 2
     elif dxy_value <= 108:
         score += 1
     else:
         score += 0
 
-    # INR change: max 4
+    # INR change: max 2
     # Negative means INR appreciation; positive means INR depreciation.
     if inr_change <= 0:
-        score += 4
+        score += 2
     elif inr_change <= 1:
-        score += 3
-    elif inr_change <= 2:
         score += 1
     else:
         score += 0
 
-    return min(score, 12)
+    return min(score, 8)
 
 
 def score_crude(brent_crude):
     """
-    Crude score out of 12.
+    Crude score out of 8.
     Lower crude is better for India.
     """
     crude = safe_float(brent_crude, default=80)
 
     if crude <= 70:
-        return 12
+        return 8
     if crude <= 80:
-        return 10
-    if crude <= 90:
         return 7
+    if crude <= 90:
+        return 5
     if crude <= 100:
-        return 4
+        return 3
     if crude <= 110:
         return 1
     return 0
@@ -229,23 +276,6 @@ def score_crude(brent_crude):
 def calculate_engine_a_score(inputs):
     """
     Main Engine A calculation.
-
-    Expected inputs dictionary:
-    {
-        "nifty_pe": 22,
-        "nifty_above_200dma": "Yes",
-        "percent_stocks_above_200dma": 55,
-        "india_vix": 15,
-        "fii_30d": -5000,
-        "dii_30d": 15000,
-        "rbi_stance": "Neutral",
-        "cpi": 4.8,
-        "pmi": 55,
-        "us_10y": 4.3,
-        "dxy": 104,
-        "inr_change_percent": 0.5,
-        "brent_crude": 85
-    }
     """
 
     component_scores = {
@@ -255,6 +285,10 @@ def calculate_engine_a_score(inputs):
         "Volatility": score_volatility(inputs.get("india_vix")),
         "Flows": score_flows(inputs.get("fii_30d"), inputs.get("dii_30d")),
         "Macro": score_macro(inputs.get("rbi_stance"), inputs.get("cpi"), inputs.get("pmi")),
+        "India Rates / G-sec": score_india_rates(
+            inputs.get("india_10y_gsec"),
+            inputs.get("india_10y_gsec_30d_change_bps"),
+        ),
         "Global": score_global(inputs.get("us_10y"), inputs.get("dxy"), inputs.get("inr_change_percent")),
         "Crude": score_crude(inputs.get("brent_crude")),
     }
@@ -285,10 +319,13 @@ def generate_safety_overrides(inputs, component_scores):
     trend_score = component_scores.get("Trend", 0)
     volatility_score = component_scores.get("Volatility", 0)
     flows_score = component_scores.get("Flows", 0)
+    india_rates_score = component_scores.get("India Rates / G-sec", 0)
 
     fii_30d = safe_float(inputs.get("fii_30d"), default=0)
     nifty_pe = safe_float(inputs.get("nifty_pe"), default=22)
     india_vix = safe_float(inputs.get("india_vix"), default=15)
+    india_10y_gsec = safe_float(inputs.get("india_10y_gsec"), default=7.1)
+    india_10y_change = safe_float(inputs.get("india_10y_gsec_30d_change_bps"), default=0)
 
     if trend_score <= 3 and volatility_score <= 2 and (flows_score <= 3 or fii_30d < -15000):
         overrides.append({
@@ -308,6 +345,20 @@ def generate_safety_overrides(inputs, component_scores):
         overrides.append({
             "name": "VIX Spike",
             "action": "Reduce all position sizes by 30%",
+            "severity": "High",
+        })
+
+    if india_10y_gsec > 7.75 or india_10y_change > 35:
+        overrides.append({
+            "name": "India Rates Stress",
+            "action": "Avoid aggressive allocation; tighten growth-stock risk",
+            "severity": "Medium",
+        })
+
+    if india_rates_score <= 2 and nifty_pe > 24:
+        overrides.append({
+            "name": "Valuation-Rates Mismatch",
+            "action": "High valuation with high rates; cap equity at 55%",
             "severity": "High",
         })
 
@@ -375,6 +426,11 @@ def classify_engine_a_regime(score, safety_overrides=None):
             equity = min(equity, 70)
             action = f"{action} PE Bubble override active."
 
+        if override["name"] == "Valuation-Rates Mismatch":
+            equity = min(equity, 55)
+            debt = max(debt, 30)
+            action = "Valuation-Rates Mismatch active. Equity capped at 55%."
+
     return {
         "regime": regime,
         "equity_allocation_percent": equity,
@@ -399,6 +455,8 @@ def default_engine_a_inputs():
         "rbi_stance": "Neutral",
         "cpi": 4.8,
         "pmi": 55.0,
+        "india_10y_gsec": 7.1,
+        "india_10y_gsec_30d_change_bps": 0.0,
         "us_10y": 4.3,
         "dxy": 104.0,
         "inr_change_percent": 0.5,
