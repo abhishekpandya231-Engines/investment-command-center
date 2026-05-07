@@ -1,12 +1,9 @@
 import streamlit as st
 import pandas as pd
-import json
-from pathlib import Path
 from datetime import datetime
 
 from core.exit_engine import evaluate_exit
 from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
-from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
 # Page Setup
@@ -18,7 +15,7 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# Constants
+# Helper Functions
 # --------------------------------------------------
 PORTFOLIO_REQUIRED_COLUMNS = [
     "Stock",
@@ -49,43 +46,6 @@ SCREENER_KEY_COLUMNS = [
     "1Y High",
     "NSE Code",
 ]
-
-# --------------------------------------------------
-# Helper Functions
-# --------------------------------------------------
-def load_manual_inputs_file():
-    manual_file = Path("data/manual_inputs.json")
-
-    if not manual_file.exists():
-        return {
-            "source_status": "Default code values; manual_inputs.json not found",
-            "inputs": default_engine_a_inputs(),
-            "metadata": {},
-        }
-
-    try:
-        with open(manual_file, "r", encoding="utf-8") as file:
-            data = json.load(file)
-
-        engine_inputs = {}
-        for key, details in data.get("engine_a_inputs", {}).items():
-            engine_inputs[key] = details.get("value")
-
-        return {
-            "source_status": data.get("metadata", {}).get(
-                "source_status",
-                "Manual inputs; not live market data"
-            ),
-            "inputs": engine_inputs,
-            "metadata": data.get("metadata", {}),
-        }
-
-    except Exception as error:
-        return {
-            "source_status": f"Error reading manual_inputs.json: {error}",
-            "inputs": default_engine_a_inputs(),
-            "metadata": {},
-        }
 
 
 def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -188,17 +148,48 @@ def generate_screener_verdict(row) -> str:
     debt = row.get("Total Debt to Total Equity Ann ", None)
     growth = row.get("Net Profit Ann  YoY Growth %", None)
 
-    durability = pd.to_numeric(durability, errors="coerce")
-    momentum = pd.to_numeric(momentum, errors="coerce")
-    pe = pd.to_numeric(pe, errors="coerce")
-    peg = pd.to_numeric(peg, errors="coerce")
-    roe = pd.to_numeric(roe, errors="coerce")
-    pio = pd.to_numeric(pio, errors="coerce")
-    debt = pd.to_numeric(debt, errors="coerce")
-    growth = pd.to_numeric(growth, errors="coerce")
+    try:
+        durability = float(durability)
+    except Exception:
+        durability = None
+
+    try:
+        momentum = float(momentum)
+    except Exception:
+        momentum = None
+
+    try:
+        pe = float(pe)
+    except Exception:
+        pe = None
+
+    try:
+        peg = float(peg)
+    except Exception:
+        peg = None
+
+    try:
+        roe = float(roe)
+    except Exception:
+        roe = None
+
+    try:
+        pio = float(pio)
+    except Exception:
+        pio = None
+
+    try:
+        debt = float(debt)
+    except Exception:
+        debt = None
+
+    try:
+        growth = float(growth)
+    except Exception:
+        growth = None
 
     if engine == "B":
-        if pd.notna(durability) and pd.notna(momentum):
+        if durability is not None and momentum is not None:
             if durability > 55 and momentum > 59:
                 return "GREEN GATE"
             if durability < 45 or momentum < 49:
@@ -207,16 +198,16 @@ def generate_screener_verdict(row) -> str:
         return "DATA CHECK"
 
     if engine == "C":
-        if pd.notna(roe) and pd.notna(pe) and pd.notna(pio):
+        if roe is not None and pe is not None and pio is not None:
             if roe > 15 and pe < 25 and pio > 6:
                 return "VALUE QUALIFIED"
             return "VALUE WATCH"
         return "DATA CHECK"
 
     if engine == "D":
-        if pd.notna(roe) and pd.notna(pio) and pd.notna(debt) and pd.notna(growth):
+        if roe is not None and pio is not None and debt is not None and growth is not None:
             if roe > 15 and pio > 6 and debt < 1 and growth > 15:
-                if pd.notna(peg) and peg <= 1.5:
+                if peg is not None and peg <= 1.5:
                     return "COMPOUNDER QUALIFIED"
                 return "GROWTH QUALIFIED"
             return "COMPOUNDER WATCH"
@@ -295,35 +286,31 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 
     return flags
 
+
 # --------------------------------------------------
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v0.3")
+st.caption("Rules-Based Portfolio Intelligence System | v1.0")
+
+st.divider()
 
 # --------------------------------------------------
 # Engine A Inputs
 # --------------------------------------------------
-manual_input_bundle = load_manual_inputs_file()
 defaults = default_engine_a_inputs()
-defaults.update(manual_input_bundle.get("inputs", {}))
-engine_a_source_status = manual_input_bundle.get("source_status", "Manual inputs; not live market data")
-engine_a_metadata = manual_input_bundle.get("metadata", {})
 
 st.sidebar.title("⚙️ Engine A Market Gate")
 st.sidebar.caption("Manual inputs for now. Later we can automate selected fields.")
-st.sidebar.info(f"Source: {engine_a_source_status}")
 
 with st.sidebar.expander("Engine A Inputs", expanded=True):
     nifty_pe = st.number_input("Nifty PE", value=float(defaults["nifty_pe"]), step=0.1)
-    nifty_above_200dma = st.selectbox("Nifty above 200 DMA?", ["Yes", "No"], index=0 if str(defaults["nifty_above_200dma"]).lower() == "yes" else 1)
+    nifty_above_200dma = st.selectbox("Nifty above 200 DMA?", ["Yes", "No"], index=0)
     breadth = st.number_input("% Stocks Above 200 DMA", value=float(defaults["percent_stocks_above_200dma"]), step=1.0)
     india_vix = st.number_input("India VIX", value=float(defaults["india_vix"]), step=0.1)
     fii_30d = st.number_input("FII 30D Flow ₹ Cr", value=float(defaults["fii_30d"]), step=500.0)
     dii_30d = st.number_input("DII 30D Flow ₹ Cr", value=float(defaults["dii_30d"]), step=500.0)
-    rbi_options = ["Accommodative", "Neutral", "Withdrawal", "Tightening"]
-    rbi_default_index = rbi_options.index(defaults["rbi_stance"]) if defaults["rbi_stance"] in rbi_options else 1
-    rbi_stance = st.selectbox("RBI Stance", rbi_options, index=rbi_default_index)
+    rbi_stance = st.selectbox("RBI Stance", ["Accommodative", "Neutral", "Withdrawal", "Tightening"], index=1)
     cpi = st.number_input("CPI %", value=float(defaults["cpi"]), step=0.1)
     pmi = st.number_input("PMI", value=float(defaults["pmi"]), step=0.1)
     us_10y = st.number_input("US 10Y Yield %", value=float(defaults["us_10y"]), step=0.1)
@@ -353,8 +340,6 @@ engine_a_score = engine_a_result["score"]
 # --------------------------------------------------
 # System Status
 # --------------------------------------------------
-st.divider()
-
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -373,10 +358,6 @@ st.divider()
 # --------------------------------------------------
 st.subheader("🧠 Engine A Market Gate")
 
-st.warning(f"Engine A Source: {engine_a_source_status}")
-if engine_a_metadata.get("notes"):
-    st.caption(engine_a_metadata.get("notes"))
-
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -392,15 +373,6 @@ with col4:
     st.metric("Debt / Gold", f"{engine_a_result['debt_allocation_percent']}% / {engine_a_result['gold_allocation_percent']}%")
 
 st.info(engine_a_result["action"])
-
-with st.expander("View Engine A Manual Inputs Used"):
-    inputs_used_df = pd.DataFrame(
-        {
-            "Input": list(engine_a_inputs.keys()),
-            "Value": list(engine_a_inputs.values()),
-        }
-    )
-    st.dataframe(inputs_used_df, use_container_width=True)
 
 component_df = pd.DataFrame(
     {
@@ -423,7 +395,7 @@ st.divider()
 # --------------------------------------------------
 # Tabs
 # --------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload", "📝 Decision Journal"])
+tab1, tab2 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload"])
 
 # --------------------------------------------------
 # Screener Upload Tab
@@ -460,6 +432,7 @@ with tab1:
             all_screeners.append(prepared_df)
 
         combined_df = pd.concat(all_screeners, ignore_index=True)
+        combined_df = apply_stock_risk(combined_df)
 
         st.success(f"{len(screener_files)} screener file(s) uploaded successfully.")
 
@@ -487,6 +460,35 @@ with tab1:
 
         with col3:
             st.metric("Compounder Rows", int((combined_df["Engine"] == "D").sum()))
+
+        st.divider()
+
+        st.subheader("🛡️ Risk Engine Summary")
+
+        risk_summary = evaluate_screener_risk_summary(combined_df)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Critical Risk", risk_summary["critical_count"])
+
+        with col2:
+            st.metric("High Risk", risk_summary["high_count"])
+
+        with col3:
+            st.metric("Small-Cap Rows", risk_summary["small_cap_count"])
+
+        with col4:
+            st.metric("High Debt Rows", risk_summary["high_debt_count"])
+
+        risk_level_df = (
+            combined_df.groupby(["Engine", "Risk Level"], as_index=False)
+            .size()
+            .rename(columns={"size": "Count"})
+            .sort_values(["Engine", "Risk Level"])
+        )
+
+        st.dataframe(risk_level_df, use_container_width=True)
 
         st.divider()
 
@@ -557,6 +559,9 @@ with tab1:
             "Total Debt to Total Equity Ann ",
             "Net Profit Ann  YoY Growth %",
             "Revenue QoQ Growth %",
+            "Risk Level",
+            "Risk Score",
+            "Risk Notes",
         ]
 
         watchlist_columns = [col for col in watchlist_columns if col in watchlist_df.columns]
@@ -642,6 +647,7 @@ with tab2:
         else:
             portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
             portfolio_df = apply_exit_engine(portfolio_df, engine_a_score=engine_a_score)
+            portfolio_df = apply_stock_risk(portfolio_df)
 
             invested_value = portfolio_df["Invested Value"].sum()
             current_value = portfolio_df["Current Value"].sum()
@@ -673,6 +679,26 @@ with tab2:
                 .rename(columns={"size": "Count"})
             )
             st.dataframe(verdict_counts, use_container_width=True)
+
+            st.divider()
+
+            st.subheader("🛡️ Portfolio Risk Engine")
+
+            portfolio_risk = evaluate_portfolio_risk_summary(portfolio_df)
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.metric("Portfolio Risk Level", portfolio_risk["portfolio_risk_level"])
+
+            with col2:
+                st.metric("Portfolio Risk Score", f"{portfolio_risk['risk_score']}/100")
+
+            for note in portfolio_risk["notes"]:
+                if portfolio_risk["portfolio_risk_level"] in ["HIGH", "CRITICAL"]:
+                    st.warning(note)
+                else:
+                    st.info(note)
 
             st.divider()
 
@@ -722,63 +748,6 @@ with tab2:
 
         st.dataframe(sample_df, use_container_width=True)
 
-# --------------------------------------------------
-# Decision Journal Tab
-# --------------------------------------------------
-with tab3:
-    st.subheader("📝 Decision Journal")
-
-    st.write(
-        """
-        This section shows the audit trail file stored at:
-
-        **data/decision_log.csv**
-
-        For now, it is a blank template. Later, we will add buttons to log decisions directly from the screener and portfolio tables.
-        """
-    )
-
-    journal_df = load_decision_journal("data/decision_log.csv")
-    journal_summary = summarize_decision_journal(journal_df)
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Total Decisions", journal_summary["total_decisions"])
-
-    with col2:
-        st.metric("Buy Actions", journal_summary["buy_actions"])
-
-    with col3:
-        st.metric("Trim Actions", journal_summary["trim_actions"])
-
-    with col4:
-        st.metric("Exit Actions", journal_summary["exit_actions"])
-
-    st.divider()
-
-    if journal_df.empty:
-        st.info("Decision journal is currently blank. This is correct for the first setup.")
-    else:
-        st.success("Decision journal loaded successfully.")
-
-    st.dataframe(journal_df, use_container_width=True)
-
-    csv_data = journal_df.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        label="Download Decision Journal CSV",
-        data=csv_data,
-        file_name="decision_log.csv",
-        mime="text/csv",
-    )
-
-    st.warning(
-        "Important: Streamlit Cloud cannot permanently write new rows back to GitHub automatically. "
-        "For now, download the CSV after updates. Later we can connect a database or GitHub API."
-    )
-
-
 st.divider()
 
 # --------------------------------------------------
@@ -796,6 +765,7 @@ modules = pd.DataFrame(
             "Engine B Momentum",
             "Engine C Value",
             "Engine D Compounders",
+            "Risk Engine",
             "Decision Journal",
             "AI Analyst Layer",
         ],
@@ -807,7 +777,7 @@ modules = pd.DataFrame(
             "Basic Rules",
             "Basic Rules",
             "Basic Rules",
-            "Connected v0.1",
+            "Not Started",
             "Not Started",
         ],
     }
