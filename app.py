@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 from core.exit_engine import evaluate_exit
+from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
 
 # --------------------------------------------------
 # Page Setup
@@ -88,9 +89,6 @@ def infer_screener_name(filename: str) -> str:
 
 
 def classify_market_cap(market_cap_value) -> str:
-    """
-    Assumes Market Cap is in Rs Crore, as commonly exported by Trendlyne.
-    """
     try:
         value = float(market_cap_value)
     except Exception:
@@ -219,9 +217,6 @@ def generate_screener_verdict(row) -> str:
 
 
 def apply_exit_engine(df: pd.DataFrame, engine_a_score: float) -> pd.DataFrame:
-    """
-    Applies the central Exit Engine to every row.
-    """
     df = df.copy()
 
     exit_results = df.apply(
@@ -300,13 +295,58 @@ st.caption("Rules-Based Portfolio Intelligence System | v1.0")
 
 st.divider()
 
+# --------------------------------------------------
+# Engine A Inputs
+# --------------------------------------------------
+defaults = default_engine_a_inputs()
+
+st.sidebar.title("⚙️ Engine A Market Gate")
+st.sidebar.caption("Manual inputs for now. Later we can automate selected fields.")
+
+with st.sidebar.expander("Engine A Inputs", expanded=True):
+    nifty_pe = st.number_input("Nifty PE", value=float(defaults["nifty_pe"]), step=0.1)
+    nifty_above_200dma = st.selectbox("Nifty above 200 DMA?", ["Yes", "No"], index=0)
+    breadth = st.number_input("% Stocks Above 200 DMA", value=float(defaults["percent_stocks_above_200dma"]), step=1.0)
+    india_vix = st.number_input("India VIX", value=float(defaults["india_vix"]), step=0.1)
+    fii_30d = st.number_input("FII 30D Flow ₹ Cr", value=float(defaults["fii_30d"]), step=500.0)
+    dii_30d = st.number_input("DII 30D Flow ₹ Cr", value=float(defaults["dii_30d"]), step=500.0)
+    rbi_stance = st.selectbox("RBI Stance", ["Accommodative", "Neutral", "Withdrawal", "Tightening"], index=1)
+    cpi = st.number_input("CPI %", value=float(defaults["cpi"]), step=0.1)
+    pmi = st.number_input("PMI", value=float(defaults["pmi"]), step=0.1)
+    us_10y = st.number_input("US 10Y Yield %", value=float(defaults["us_10y"]), step=0.1)
+    dxy = st.number_input("DXY", value=float(defaults["dxy"]), step=0.1)
+    inr_change_percent = st.number_input("INR Change %", value=float(defaults["inr_change_percent"]), step=0.1)
+    brent_crude = st.number_input("Brent Crude", value=float(defaults["brent_crude"]), step=1.0)
+
+engine_a_inputs = {
+    "nifty_pe": nifty_pe,
+    "nifty_above_200dma": nifty_above_200dma,
+    "percent_stocks_above_200dma": breadth,
+    "india_vix": india_vix,
+    "fii_30d": fii_30d,
+    "dii_30d": dii_30d,
+    "rbi_stance": rbi_stance,
+    "cpi": cpi,
+    "pmi": pmi,
+    "us_10y": us_10y,
+    "dxy": dxy,
+    "inr_change_percent": inr_change_percent,
+    "brent_crude": brent_crude,
+}
+
+engine_a_result = calculate_engine_a_score(engine_a_inputs)
+engine_a_score = engine_a_result["score"]
+
+# --------------------------------------------------
+# System Status
+# --------------------------------------------------
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.0")
+    st.metric("System Version", "v0.3")
 
 with col2:
-    st.metric("Build Stage", "Exit Engine Connected")
+    st.metric("Build Stage", "Engine A Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -314,34 +354,43 @@ with col3:
 st.divider()
 
 # --------------------------------------------------
-# Sidebar Controls
+# Engine A Summary
 # --------------------------------------------------
-st.sidebar.title("⚙️ System Controls")
+st.subheader("🧠 Engine A Market Gate")
 
-engine_a_score = st.sidebar.slider(
-    "Engine A Score",
-    min_value=0,
-    max_value=100,
-    value=50,
-    step=1,
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Engine A Score", f"{engine_a_result['score']}/100")
+
+with col2:
+    st.metric("Regime", engine_a_result["regime"])
+
+with col3:
+    st.metric("Equity Allocation", f"{engine_a_result['equity_allocation_percent']}%")
+
+with col4:
+    st.metric("Debt / Gold", f"{engine_a_result['debt_allocation_percent']}% / {engine_a_result['gold_allocation_percent']}%")
+
+st.info(engine_a_result["action"])
+
+component_df = pd.DataFrame(
+    {
+        "Component": list(engine_a_result["component_scores"].keys()),
+        "Score": list(engine_a_result["component_scores"].values()),
+    }
 )
 
-st.sidebar.caption("Temporary manual score. Later this will come from Engine A Market Gate.")
+with st.expander("View Engine A Component Scores"):
+    st.dataframe(component_df, use_container_width=True)
 
-if engine_a_score <= 20:
-    market_regime = "EXIT"
-elif engine_a_score <= 30:
-    market_regime = "FREEZE"
-elif engine_a_score <= 40:
-    market_regime = "CAUTIOUS"
-elif engine_a_score <= 52:
-    market_regime = "ACTIVE"
-elif engine_a_score <= 62:
-    market_regime = "AGGRESSIVE"
+if engine_a_result["safety_overrides"]:
+    st.warning("Safety override triggered.")
+    st.dataframe(pd.DataFrame(engine_a_result["safety_overrides"]), use_container_width=True)
 else:
-    market_regime = "FULL DEPLOY"
+    st.success("No Engine A safety override triggered.")
 
-st.sidebar.metric("Market Regime", market_regime)
+st.divider()
 
 # --------------------------------------------------
 # Tabs
@@ -669,7 +718,7 @@ modules = pd.DataFrame(
             "Working",
             "In Progress",
             "Connected v0.1",
-            "Manual Slider",
+            "Connected v0.1",
             "Basic Rules",
             "Basic Rules",
             "Basic Rules",
@@ -681,4 +730,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Exit Engine connection loaded successfully.")
+st.success("Engine A Market Gate connection loaded successfully.")
