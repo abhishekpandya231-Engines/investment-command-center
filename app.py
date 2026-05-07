@@ -6,6 +6,7 @@ from datetime import datetime
 
 from core.exit_engine import evaluate_exit
 from core.engine_a import calculate_engine_a_score, default_engine_a_inputs
+from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
 # Page Setup
@@ -298,7 +299,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v0.4")
+st.caption("Rules-Based Portfolio Intelligence System | v0.3")
 
 # --------------------------------------------------
 # Engine A Inputs
@@ -325,8 +326,6 @@ with st.sidebar.expander("Engine A Inputs", expanded=True):
     rbi_stance = st.selectbox("RBI Stance", rbi_options, index=rbi_default_index)
     cpi = st.number_input("CPI %", value=float(defaults["cpi"]), step=0.1)
     pmi = st.number_input("PMI", value=float(defaults["pmi"]), step=0.1)
-    india_10y_gsec = st.number_input("India 10Y G-sec Yield %", value=float(defaults.get("india_10y_gsec", 7.1)), step=0.01)
-    india_10y_gsec_30d_change_bps = st.number_input("India 10Y G-sec 30D Change bps", value=float(defaults.get("india_10y_gsec_30d_change_bps", 0.0)), step=1.0)
     us_10y = st.number_input("US 10Y Yield %", value=float(defaults["us_10y"]), step=0.1)
     dxy = st.number_input("DXY", value=float(defaults["dxy"]), step=0.1)
     inr_change_percent = st.number_input("INR Change %", value=float(defaults["inr_change_percent"]), step=0.1)
@@ -342,8 +341,6 @@ engine_a_inputs = {
     "rbi_stance": rbi_stance,
     "cpi": cpi,
     "pmi": pmi,
-    "india_10y_gsec": india_10y_gsec,
-    "india_10y_gsec_30d_change_bps": india_10y_gsec_30d_change_bps,
     "us_10y": us_10y,
     "dxy": dxy,
     "inr_change_percent": inr_change_percent,
@@ -361,10 +358,10 @@ st.divider()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.4")
+    st.metric("System Version", "v0.3")
 
 with col2:
-    st.metric("Build Stage", "G-sec Integrated")
+    st.metric("Build Stage", "Engine A Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -426,7 +423,7 @@ st.divider()
 # --------------------------------------------------
 # Tabs
 # --------------------------------------------------
-tab1, tab2 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload"])
+tab1, tab2, tab3 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload", "📝 Decision Journal"])
 
 # --------------------------------------------------
 # Screener Upload Tab
@@ -725,6 +722,63 @@ with tab2:
 
         st.dataframe(sample_df, use_container_width=True)
 
+# --------------------------------------------------
+# Decision Journal Tab
+# --------------------------------------------------
+with tab3:
+    st.subheader("📝 Decision Journal")
+
+    st.write(
+        """
+        This section shows the audit trail file stored at:
+
+        **data/decision_log.csv**
+
+        For now, it is a blank template. Later, we will add buttons to log decisions directly from the screener and portfolio tables.
+        """
+    )
+
+    journal_df = load_decision_journal("data/decision_log.csv")
+    journal_summary = summarize_decision_journal(journal_df)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Total Decisions", journal_summary["total_decisions"])
+
+    with col2:
+        st.metric("Buy Actions", journal_summary["buy_actions"])
+
+    with col3:
+        st.metric("Trim Actions", journal_summary["trim_actions"])
+
+    with col4:
+        st.metric("Exit Actions", journal_summary["exit_actions"])
+
+    st.divider()
+
+    if journal_df.empty:
+        st.info("Decision journal is currently blank. This is correct for the first setup.")
+    else:
+        st.success("Decision journal loaded successfully.")
+
+    st.dataframe(journal_df, use_container_width=True)
+
+    csv_data = journal_df.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        label="Download Decision Journal CSV",
+        data=csv_data,
+        file_name="decision_log.csv",
+        mime="text/csv",
+    )
+
+    st.warning(
+        "Important: Streamlit Cloud cannot permanently write new rows back to GitHub automatically. "
+        "For now, download the CSV after updates. Later we can connect a database or GitHub API."
+    )
+
+
 st.divider()
 
 # --------------------------------------------------
@@ -749,11 +803,11 @@ modules = pd.DataFrame(
             "Working",
             "In Progress",
             "Connected v0.1",
-            "Connected v0.2 with G-sec",
+            "Connected v0.1",
             "Basic Rules",
             "Basic Rules",
             "Basic Rules",
-            "Not Started",
+            "Connected v0.1",
             "Not Started",
         ],
     }
