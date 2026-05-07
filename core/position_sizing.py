@@ -1,22 +1,16 @@
 """
-Position Sizing Engine v0.1
+Position Sizing Engine v0.2
 Investment Command Center
 
 Purpose:
-Converts signal quality, market regime, exit verdict, and risk level into
-a suggested position-size band.
+Converts signal quality, market regime, exit verdict, risk level, and conviction level
+into a suggested position-size band.
 
-This is not trade execution.
-This is a risk-control and capital-allocation discipline layer.
-
-Inputs expected:
-- Engine
-- Rule Verdict
-- Exit Verdict
-- Risk Level
-- Risk Score
-- Engine A Score
-- Market Regime
+v0.2 upgrade:
+- Uses Conviction Score and Conviction Level.
+- Makes sizing stricter for Medium/Low/Watchlist names.
+- Caps High Risk, GUARD, TRIM, and single-signal candidates.
+- Keeps capital allocation discipline separate from stock selection.
 
 Outputs:
 - Suggested Position Size %
@@ -72,15 +66,15 @@ def get_exit_verdict_multiplier(exit_verdict: str) -> float:
     if verdict == "RIDE":
         return 1.00
     if verdict == "TRIM":
-        return 0.50
+        return 0.45
     if verdict == "GUARD":
-        return 0.30
+        return 0.20
     if verdict == "FREEZE":
-        return 0.10
+        return 0.05
     if verdict == "EXIT":
         return 0.00
 
-    return 0.40
+    return 0.30
 
 
 def get_risk_multiplier(risk_level: str, risk_score) -> float:
@@ -94,22 +88,50 @@ def get_risk_multiplier(risk_level: str, risk_score) -> float:
         return 1.00
     if level == "MODERATE":
         if score >= 50:
-            return 0.60
-        return 0.70
+            return 0.50
+        return 0.65
     if level == "HIGH":
-        return 0.35
+        return 0.25
     if level == "CRITICAL":
         return 0.00
 
-    return 0.60
+    return 0.50
+
+
+def get_conviction_multiplier(conviction_level: str, conviction_score) -> float:
+    """
+    Converts Conviction Engine output into sizing multiplier.
+    This is the main v0.2 improvement.
+    """
+    level = normalize_text(conviction_level)
+    score = safe_float(conviction_score, default=50)
+
+    if level == "HIGH CONVICTION":
+        return 1.00
+    if level == "STRONG":
+        return 0.80
+    if level == "MEDIUM":
+        if score >= 65:
+            return 0.55
+        return 0.45
+    if level == "LOW":
+        return 0.20
+    if level == "TACTICAL ONLY":
+        return 0.25
+    if level == "WATCHLIST":
+        return 0.00
+    if level == "AVOID / FREEZE":
+        return 0.00
+
+    return 0.35
 
 
 def get_engine_base_position(engine: str, rule_verdict: str) -> float:
     """
-    Base max position before regime/risk modifiers.
+    Base max position before regime/risk/conviction modifiers.
 
     Philosophy:
-    - Engine D compounders can carry larger positions if risk is low.
+    - Engine D compounders can carry larger positions if risk and conviction support it.
     - Engine C value names get moderate sizing.
     - Engine B momentum names are sized smaller due to volatility.
     """
@@ -121,29 +143,74 @@ def get_engine_base_position(engine: str, rule_verdict: str) -> float:
             return 5.00
         if "GROWTH QUALIFIED" in verdict:
             return 4.00
-        return 3.00
+        return 2.50
 
     if engine_value == "C":
         if "VALUE QUALIFIED" in verdict:
             return 4.00
-        return 2.50
+        return 2.25
 
     if engine_value == "B":
         if "GREEN GATE" in verdict:
-            return 3.00
+            return 2.75
         if "GREY GATE" in verdict:
-            return 2.00
+            return 1.25
+        return 0.75
+
+    return 1.00
+
+
+def get_absolute_cap(risk_level: str, conviction_level: str, exit_verdict: str) -> float:
+    """
+    Absolute position cap after all multipliers.
+    This prevents high-risk / low-conviction names from getting oversized.
+    """
+    risk = normalize_text(risk_level)
+    conviction = normalize_text(conviction_level)
+    exit_value = normalize_text(exit_verdict)
+
+    if exit_value == "EXIT":
+        return 0.00
+    if exit_value == "FREEZE":
+        return 0.00
+    if conviction in ["WATCHLIST", "AVOID / FREEZE"]:
+        return 0.00
+    if risk == "CRITICAL":
+        return 0.00
+
+    if exit_value == "GUARD":
+        return 0.75
+    if exit_value == "TRIM":
+        return 1.25
+
+    if risk == "HIGH":
         return 1.00
+    if risk == "MODERATE":
+        if conviction == "HIGH CONVICTION":
+            return 2.50
+        if conviction == "STRONG":
+            return 2.00
+        return 1.25
 
-    return 1.50
+    if conviction == "HIGH CONVICTION":
+        return 5.00
+    if conviction == "STRONG":
+        return 3.50
+    if conviction == "MEDIUM":
+        return 1.75
+    if conviction == "LOW":
+        return 0.75
+
+    return 1.00
 
 
-def classify_position_action(suggested_position: float, exit_verdict: str, risk_level: str) -> str:
+def classify_position_action(suggested_position: float, exit_verdict: str, risk_level: str, conviction_level: str) -> str:
     """
     Converts final position size into action label.
     """
     verdict = normalize_text(exit_verdict)
     risk = normalize_text(risk_level)
+    conviction = normalize_text(conviction_level)
 
     if verdict == "EXIT":
         return "NO POSITION / EXIT"
@@ -151,8 +218,10 @@ def classify_position_action(suggested_position: float, exit_verdict: str, risk_
         return "NO FRESH BUY"
     if risk == "CRITICAL":
         return "AVOID"
+    if conviction in ["WATCHLIST", "AVOID / FREEZE"]:
+        return "TRACK ONLY"
     if suggested_position <= 0:
-        return "NO POSITION"
+        return "TRACK ONLY"
     if suggested_position < 1:
         return "TRACK ONLY"
     if suggested_position < 2:
@@ -171,39 +240,40 @@ def calculate_position_size(row, engine_a_score=50, market_regime="ACTIVE") -> d
     exit_verdict = row.get("Exit Verdict", "GUARD")
     risk_level = row.get("Risk Level", "MODERATE")
     risk_score = row.get("Risk Score", 50)
+    conviction_level = row.get("Conviction Level", "MEDIUM")
+    conviction_score = row.get("Conviction Score", 50)
 
     base_position = get_engine_base_position(engine, rule_verdict)
     regime_multiplier = get_regime_multiplier(market_regime)
     exit_multiplier = get_exit_verdict_multiplier(exit_verdict)
     risk_multiplier = get_risk_multiplier(risk_level, risk_score)
+    conviction_multiplier = get_conviction_multiplier(conviction_level, conviction_score)
 
-    suggested_position = base_position * regime_multiplier * exit_multiplier * risk_multiplier
+    raw_position = (
+        base_position
+        * regime_multiplier
+        * exit_multiplier
+        * risk_multiplier
+        * conviction_multiplier
+    )
 
-    # Conservative rounding
-    suggested_position = round(suggested_position, 2)
+    max_cap = get_absolute_cap(risk_level, conviction_level, exit_verdict)
+    suggested_position = min(round(raw_position, 2), max_cap)
 
-    # Absolute caps based on risk
-    risk = normalize_text(risk_level)
-
-    if risk == "CRITICAL":
-        max_cap = 0.00
-    elif risk == "HIGH":
-        max_cap = 1.50
-    elif risk == "MODERATE":
-        max_cap = 3.00
-    else:
-        max_cap = 5.00
-
-    suggested_position = min(suggested_position, max_cap)
-
-    action = classify_position_action(suggested_position, exit_verdict, risk_level)
+    action = classify_position_action(
+        suggested_position,
+        exit_verdict,
+        risk_level,
+        conviction_level,
+    )
 
     reason_parts = [
         f"Base {base_position:.2f}% from Engine {engine} and rule verdict.",
+        f"Conviction {conviction_level} with multiplier {conviction_multiplier:.2f}.",
         f"Market regime multiplier {regime_multiplier:.2f}.",
         f"Exit verdict multiplier {exit_multiplier:.2f}.",
         f"Risk multiplier {risk_multiplier:.2f}.",
-        f"Risk cap {max_cap:.2f}%."
+        f"Absolute cap {max_cap:.2f}%."
     ]
 
     return {
