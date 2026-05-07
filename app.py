@@ -21,6 +21,11 @@ from core.stock_master import (
     create_stock_master_view,
     summarize_stock_master,
 )
+from core.portfolio_compatibility import (
+    evaluate_portfolio_holdings,
+    find_fresh_candidates,
+    summarize_portfolio_compatibility,
+)
 from core.decision_journal import load_decision_journal, summarize_decision_journal
 
 # --------------------------------------------------
@@ -309,7 +314,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.0")
+st.caption("Rules-Based Portfolio Intelligence System | v1.1")
 
 st.divider()
 
@@ -361,10 +366,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.0")
+    st.metric("System Version", "v1.1")
 
 with col2:
-    st.metric("Build Stage", "Stock Master Connected")
+    st.metric("Build Stage", "Portfolio Compatibility Connected")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -1019,6 +1024,11 @@ with tab2:
                 market_regime=engine_a_result["regime"],
             )
 
+            portfolio_compatibility_df = evaluate_portfolio_holdings(
+                portfolio_df,
+                stock_master_df if "stock_master_df" in locals() else None,
+            )
+
             invested_value = portfolio_df["Invested Value"].sum()
             current_value = portfolio_df["Current Value"].sum()
             pnl = current_value - invested_value
@@ -1213,6 +1223,7 @@ modules = pd.DataFrame(
         {"Module": "Position Sizing Engine", "Status": "Connected v0.1"},
         {"Module": "Conviction Engine", "Status": "Connected v0.2"},
         {"Module": "Stock Master View", "Status": "Connected v0.1"},
+        {"Module": "Portfolio Compatibility Engine", "Status": "Connected v0.1"},
         {"Module": "Decision Journal", "Status": "Connected v0.1"},
         {"Module": "AI Analyst Layer", "Status": "Not Started"},
     ]
