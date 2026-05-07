@@ -298,7 +298,7 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # Header
 # --------------------------------------------------
 st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v0.3")
+st.caption("Rules-Based Portfolio Intelligence System | v0.4")
 
 # --------------------------------------------------
 # Engine A Inputs
@@ -325,6 +325,8 @@ with st.sidebar.expander("Engine A Inputs", expanded=True):
     rbi_stance = st.selectbox("RBI Stance", rbi_options, index=rbi_default_index)
     cpi = st.number_input("CPI %", value=float(defaults["cpi"]), step=0.1)
     pmi = st.number_input("PMI", value=float(defaults["pmi"]), step=0.1)
+    india_10y_gsec = st.number_input("India 10Y G-sec Yield %", value=float(defaults.get("india_10y_gsec", 7.1)), step=0.01)
+    india_10y_gsec_30d_change_bps = st.number_input("India 10Y G-sec 30D Change bps", value=float(defaults.get("india_10y_gsec_30d_change_bps", 0.0)), step=1.0)
     us_10y = st.number_input("US 10Y Yield %", value=float(defaults["us_10y"]), step=0.1)
     dxy = st.number_input("DXY", value=float(defaults["dxy"]), step=0.1)
     inr_change_percent = st.number_input("INR Change %", value=float(defaults["inr_change_percent"]), step=0.1)
@@ -340,6 +342,8 @@ engine_a_inputs = {
     "rbi_stance": rbi_stance,
     "cpi": cpi,
     "pmi": pmi,
+    "india_10y_gsec": india_10y_gsec,
+    "india_10y_gsec_30d_change_bps": india_10y_gsec_30d_change_bps,
     "us_10y": us_10y,
     "dxy": dxy,
     "inr_change_percent": inr_change_percent,
@@ -357,10 +361,10 @@ st.divider()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v0.3")
+    st.metric("System Version", "v0.4")
 
 with col2:
-    st.metric("Build Stage", "Engine A Connected")
+    st.metric("Build Stage", "G-sec Integrated")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -745,7 +749,7 @@ modules = pd.DataFrame(
             "Working",
             "In Progress",
             "Connected v0.1",
-            "Connected v0.1",
+            "Connected v0.2 with G-sec",
             "Basic Rules",
             "Basic Rules",
             "Basic Rules",
