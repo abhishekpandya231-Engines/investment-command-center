@@ -756,33 +756,20 @@ st.divider()
 st.subheader("Current Build Modules")
 
 modules = pd.DataFrame(
-    {
-        "Module": [
-            "Multi-Screener Upload",
-            "Portfolio Command Center",
-            "Exit Engine",
-            "Engine A Market Gate",
-            "Engine B Momentum",
-            "Engine C Value",
-            "Engine D Compounders",
-            "Risk Engine",
-            "Decision Journal",
-            "AI Analyst Layer",
-        ],
-        "Status": [
-            "Working",
-            "In Progress",
-            "Connected v0.1",
-            "Connected v0.1",
-            "Basic Rules",
-            "Basic Rules",
-            "Basic Rules",
-            "Not Started",
-            "Not Started",
-        ],
-    }
+    [
+        {"Module": "Multi-Screener Upload", "Status": "Working"},
+        {"Module": "Portfolio Command Center", "Status": "In Progress"},
+        {"Module": "Exit Engine", "Status": "Connected v0.1"},
+        {"Module": "Engine A Market Gate", "Status": "Connected v0.2 with G-sec"},
+        {"Module": "Engine B Momentum", "Status": "Basic Rules"},
+        {"Module": "Engine C Value", "Status": "Basic Rules"},
+        {"Module": "Engine D Compounders", "Status": "Basic Rules"},
+        {"Module": "Risk Engine", "Status": "Connected v0.1"},
+        {"Module": "Decision Journal", "Status": "Connected v0.1"},
+        {"Module": "AI Analyst Layer", "Status": "Not Started"},
+    ]
 )
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Engine A Market Gate connection loaded successfully.")
+st.success("Risk Engine connection loaded successfully.")
