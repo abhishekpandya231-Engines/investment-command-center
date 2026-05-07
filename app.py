@@ -5,6 +5,7 @@ from core.portfolio_compatibility import (
 )
 import streamlit as st
 import pandas as pd
+import html
 from datetime import datetime
 
 from core.stock_master import (
@@ -39,7 +40,7 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Premium Navigation Theme
+# Premium White Theme + Mobile Card Layout
 # --------------------------------------------------
 st.markdown(
     """
@@ -244,6 +245,127 @@ st.markdown(
                 font-size: 0.9rem;
             }
         }
+
+        .icc-mobile-card {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 22px;
+            padding: 18px 18px 16px 18px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.065);
+            margin: 14px 0;
+        }
+
+        .icc-mobile-card.good { border-left: 6px solid #047857; }
+        .icc-mobile-card.warn { border-left: 6px solid #B45309; }
+        .icc-mobile-card.danger { border-left: 6px solid #B91C1C; }
+        .icc-mobile-card.info { border-left: 6px solid #2563EB; }
+
+        .icc-card-kicker {
+            color: #64748B;
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+
+        .icc-card-title {
+            color: #0B1F3A;
+            font-size: 1.18rem;
+            font-weight: 900;
+            letter-spacing: -0.025em;
+            line-height: 1.18;
+            margin-bottom: 12px;
+        }
+
+        .icc-card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0;
+        }
+
+        .icc-card-field {
+            background: #F8FAFC;
+            border: 1px solid #E5E7EB;
+            border-radius: 14px;
+            padding: 10px;
+        }
+
+        .icc-card-label {
+            color: #64748B;
+            font-size: 0.74rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .icc-card-value {
+            color: #0B1F3A;
+            font-size: 0.95rem;
+            font-weight: 850;
+            line-height: 1.28;
+            word-break: break-word;
+        }
+
+        .icc-card-note {
+            color: #334155;
+            font-size: 0.92rem;
+            font-weight: 600;
+            line-height: 1.55;
+            margin-top: 12px;
+            background: #F8FAFC;
+            border: 1px solid #E5E7EB;
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .icc-card-badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .icc-card-badge {
+            background: #EEF2FF;
+            border: 1px solid #DBEAFE;
+            color: #1D4ED8;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.78rem;
+            font-weight: 850;
+        }
+
+        .icc-section-card {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 24px;
+            padding: 22px;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+            margin: 18px 0 22px 0;
+        }
+
+        .icc-section-title {
+            color: #0B1F3A;
+            font-size: 1.4rem;
+            font-weight: 900;
+            letter-spacing: -0.035em;
+            margin-bottom: 8px;
+        }
+
+        .icc-section-subtitle {
+            color: #6B7280;
+            font-size: 0.98rem;
+            font-weight: 650;
+            line-height: 1.55;
+        }
+
+        @media (max-width: 640px) {
+            .icc-card-grid { grid-template-columns: 1fr; }
+            .icc-mobile-card { border-radius: 20px; padding: 16px; }
+            .icc-card-title { font-size: 1.08rem; }
+        }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -271,6 +393,80 @@ def save_stock_master_to_session(stock_master_df):
     if stock_master_df is not None and not stock_master_df.empty:
         st.session_state["stock_master_df"] = stock_master_df.copy()
         st.session_state["stock_master_ready"] = True
+
+
+
+def safe_card_value(value, default="NA"):
+    """Return a display-safe value for HTML cards."""
+    try:
+        if pd.isna(value):
+            return default
+    except Exception:
+        pass
+
+    if isinstance(value, float):
+        if value.is_integer():
+            return f"{value:.0f}"
+        return f"{value:.2f}"
+
+    return str(value)
+
+
+def esc(value, default="NA"):
+    """HTML escape a value for premium cards."""
+    return html.escape(safe_card_value(value, default=default))
+
+
+def render_section_card(title, subtitle):
+    """Render a premium section intro card."""
+    st.markdown(
+        f"""
+        <div class="icc-section-card">
+            <div class="icc-section-title">{html.escape(str(title))}</div>
+            <div class="icc-section-subtitle">{html.escape(str(subtitle))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_mobile_card(title, kicker="", fields=None, note="", tone="info", badges=None):
+    """Render a mobile-first premium card."""
+    fields = fields or []
+    badges = badges or []
+
+    field_html = ""
+    for label, value in fields:
+        field_html += f"""
+            <div class="icc-card-field">
+                <div class="icc-card-label">{html.escape(str(label))}</div>
+                <div class="icc-card-value">{esc(value)}</div>
+            </div>
+        """
+
+    badge_html = ""
+    if badges:
+        badge_html = '<div class="icc-card-badge-row">'
+        for badge in badges:
+            badge_html += f'<span class="icc-card-badge">{esc(badge)}</span>'
+        badge_html += "</div>"
+
+    note_html = ""
+    if note:
+        note_html = f'<div class="icc-card-note">{html.escape(str(note))}</div>'
+
+    st.markdown(
+        f"""
+        <div class="icc-mobile-card {html.escape(str(tone))}">
+            <div class="icc-card-kicker">{html.escape(str(kicker))}</div>
+            <div class="icc-card-title">{html.escape(str(title))}</div>
+            <div class="icc-card-grid">{field_html}</div>
+            {badge_html}
+            {note_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # --------------------------------------------------
@@ -553,7 +749,7 @@ st.markdown(
     """
     <div class="icc-hero">
         <div class="icc-hero-title">📊 Investment<br>Command Center</div>
-        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.1</div>
+        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.2</div>
         <div class="icc-pill-row">
             <div class="icc-pill">White Premium UI</div>
             <div class="icc-pill">Rules-Based</div>
@@ -615,10 +811,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.2.1")
+    st.metric("System Version", "v1.2.2")
 
 with col2:
-    st.metric("Build Stage", "Premium Navigation")
+    st.metric("Build Stage", "Mobile Card Layout")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -673,6 +869,8 @@ tab1, tab2, tab3 = st.tabs(["📂 Screener Intelligence", "💼 Portfolio Comman
 # Screener Upload Tab
 # --------------------------------------------------
 with tab1:
+    render_section_card("Screener Intelligence", "Upload Trendlyne screener files to build risk, conviction, position sizing and Stock Master intelligence.")
+
     st.subheader("📂 Multi-Screener Upload")
 
     st.write(
@@ -834,18 +1032,19 @@ with tab1:
                 risk_notes = risk_row.get("Risk Notes", "No risk notes available.")
                 exit_verdict = risk_row.get("Exit Verdict", "NA")
 
-                if risk_level in ["HIGH", "CRITICAL"]:
-                    st.warning(
-                        f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
-                        f"Risk: **{risk_level}** | Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
-                        f"{risk_notes}"
-                    )
-                else:
-                    st.info(
-                        f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
-                        f"Risk: **{risk_level}** | Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
-                        f"{risk_notes}"
-                    )
+                render_mobile_card(
+                    title=stock_name,
+                    kicker=f"Engine {engine_name} | {screener_name}",
+                    fields=[
+                        ("Risk Level", risk_level),
+                        ("Risk Score", f"{risk_score}/100"),
+                        ("Exit Verdict", exit_verdict),
+                        ("Rule Verdict", risk_row.get("Rule Verdict", "NA")),
+                    ],
+                    note=risk_notes,
+                    tone="danger" if risk_level in ["HIGH", "CRITICAL"] else "warn",
+                    badges=[risk_level, screener_name],
+                )
         else:
             st.success("No moderate/high/critical risk rows detected.")
 
@@ -912,13 +1111,32 @@ with tab1:
         ].copy()
 
         if not top_conviction_df.empty:
-            st.dataframe(
-                top_conviction_df[conviction_candidate_columns].sort_values(
-                    ["Conviction Score", "Risk Score"],
-                    ascending=[False, True],
-                ),
-                use_container_width=True,
+            sorted_top_conviction_df = top_conviction_df[conviction_candidate_columns].sort_values(
+                ["Conviction Score", "Risk Score"],
+                ascending=[False, True],
             )
+
+            for _, conviction_row in sorted_top_conviction_df.head(12).iterrows():
+                conviction_level = conviction_row.get("Conviction Level", "NA")
+
+                render_mobile_card(
+                    title=conviction_row.get("Stock", "Unknown"),
+                    kicker=f"Engine {conviction_row.get('Engine', 'NA')} | {conviction_row.get('Screener', 'NA')}",
+                    fields=[
+                        ("Conviction", conviction_level),
+                        ("Conviction Score", f"{conviction_row.get('Conviction Score', 'NA')}/100"),
+                        ("Risk Level", conviction_row.get("Risk Level", "NA")),
+                        ("Exit Verdict", conviction_row.get("Exit Verdict", "NA")),
+                        ("Suggested Position", f"{conviction_row.get('Suggested Position Size %', 'NA')}%"),
+                        ("Action", conviction_row.get("Position Action", "NA")),
+                    ],
+                    note=conviction_row.get("Conviction Notes", ""),
+                    tone="good" if conviction_level == "HIGH CONVICTION" else "info",
+                    badges=[conviction_level, conviction_row.get("Rule Verdict", "NA")],
+                )
+
+            with st.expander("View full conviction candidates table"):
+                st.dataframe(sorted_top_conviction_df, use_container_width=True)
         else:
             st.info("No medium/strong/high-conviction candidates detected.")
 
@@ -992,10 +1210,8 @@ with tab1:
                 ascending=[False, True],
             )
 
-            st.dataframe(
-                sorted_position_candidates_df,
-                use_container_width=True,
-            )
+            with st.expander("View full position candidates table"):
+                st.dataframe(sorted_position_candidates_df, use_container_width=True)
 
             st.divider()
 
@@ -1024,12 +1240,22 @@ with tab1:
                 position_action = position_row.get("Position Action", "NA")
                 sizing_reason = position_row.get("Position Sizing Reason", "No sizing reason available.")
 
-                st.info(
-                    f"**{stock_name}** | Engine {engine_name} | {screener_name}\n\n"
-                    f"Conviction: **{conviction_level}** | Score: **{conviction_score}/100**\n\n"
-                    f"Risk: **{risk_level}** | Risk Score: **{risk_score}/100** | Exit Verdict: **{exit_verdict}**\n\n"
-                    f"Suggested Position: **{suggested_position}%** | Max Cap: **{max_cap}%** | Action: **{position_action}**\n\n"
-                    f"{sizing_reason}"
+                render_mobile_card(
+                    title=stock_name,
+                    kicker=f"Engine {engine_name} | {screener_name}",
+                    fields=[
+                        ("Conviction", conviction_level),
+                        ("Conviction Score", f"{conviction_score}/100"),
+                        ("Risk Level", risk_level),
+                        ("Risk Score", f"{risk_score}/100"),
+                        ("Exit Verdict", exit_verdict),
+                        ("Suggested Position", f"{suggested_position}%"),
+                        ("Max Cap", f"{max_cap}%"),
+                        ("Action", position_action),
+                    ],
+                    note=sizing_reason,
+                    tone="good" if str(position_action).upper() in ["HIGH CONVICTION POSITION", "NORMAL POSITION"] else "info",
+                    badges=[position_action, screener_name],
                 )
         else:
             st.info("No positive position-size candidates detected.")
@@ -1074,10 +1300,32 @@ with tab1:
             if column in stock_master_df.columns
         ]
 
-        st.dataframe(
-            stock_master_df[stock_master_display_columns],
-            use_container_width=True,
-        )
+        stock_master_display_df = stock_master_df[stock_master_display_columns].copy()
+
+        for _, master_row in stock_master_display_df.head(12).iterrows():
+            action_value = master_row.get("Final Allocation Action", "NA")
+
+            render_mobile_card(
+                title=master_row.get("Stock", "Unknown"),
+                kicker="Stock Master View",
+                fields=[
+                    ("Engines", master_row.get("Engines Present", "NA")),
+                    ("Screeners", master_row.get("Screeners Present", "NA")),
+                    ("Appearances", master_row.get("Appearance Count", "NA")),
+                    ("Best Conviction", master_row.get("Best Conviction Level", "NA")),
+                    ("Conviction Score", master_row.get("Best Conviction Score", "NA")),
+                    ("Suggested Position", f"{master_row.get('Highest Suggested Position %', 'NA')}%"),
+                    ("Final Action", action_value),
+                    ("Worst Risk", master_row.get("Worst Risk Level", "NA")),
+                    ("Exit Verdicts", master_row.get("Exit Verdicts", "NA")),
+                ],
+                note=master_row.get("Combined Notes", ""),
+                tone="good" if "HIGH" in str(action_value).upper() or "NORMAL" in str(action_value).upper() else "info",
+                badges=[master_row.get("Best Conviction Level", "NA"), action_value],
+            )
+
+        with st.expander("View full Stock Master table"):
+            st.dataframe(stock_master_display_df, use_container_width=True)
 
         st.divider()
 
@@ -1203,6 +1451,8 @@ with tab1:
 # Portfolio Upload Tab
 # --------------------------------------------------
 with tab2:
+    render_section_card("Portfolio Command", "Upload holdings to compare your actual portfolio against current system signals, risk limits and fresh candidates.")
+
     st.subheader("📁 Portfolio Upload")
 
     st.write(
@@ -1353,7 +1603,8 @@ with tab2:
             with col4:
                 st.metric("Track / Reduce", compatibility_summary["track_or_reduce"])
 
-            st.dataframe(portfolio_compatibility_df, use_container_width=True)
+            with st.expander("View full portfolio compatibility table"):
+                st.dataframe(portfolio_compatibility_df, use_container_width=True)
 
             st.divider()
 
@@ -1371,22 +1622,29 @@ with tab2:
                 action = holding_row.get("Portfolio Compatibility Action", "NA")
                 notes = holding_row.get("Portfolio Compatibility Notes", "No notes available.")
 
-                card_text = (
-                    f"**{stock_name}**\n\n"
-                    f"Portfolio Weight: **{weight}%** | Status: **{status}**\n\n"
-                    f"Master Conviction: **{master_conviction}** | Master Action: **{master_action}**\n\n"
-                    f"Compatibility Score: **{score}/100** | Action: **{action}**\n\n"
-                    f"{notes}"
-                )
-
                 action_upper = str(action).upper()
-
                 if "CORE" in action_upper or "ADD" in action_upper:
-                    st.success(card_text)
-                elif "TRACK" in action_upper or "REDUCE" in action_upper or "REVIEW" in action_upper:
-                    st.warning(card_text)
+                    note_tone = "good"
+                elif "TRACK" in action_upper or "REDUCE" in action_upper or "REVIEW" in action_upper or "CONCENTRATION" in action_upper:
+                    note_tone = "warn"
                 else:
-                    st.info(card_text)
+                    note_tone = "info"
+
+                render_mobile_card(
+                    title=stock_name,
+                    kicker="Portfolio Action Note",
+                    fields=[
+                        ("Portfolio Weight", f"{weight}%"),
+                        ("Status", status),
+                        ("Master Conviction", master_conviction),
+                        ("Master Action", master_action),
+                        ("Compatibility Score", f"{score}/100"),
+                        ("Action", action),
+                    ],
+                    note=notes,
+                    tone=note_tone,
+                    badges=[status, action],
+                )
 
             st.divider()
 
@@ -1417,10 +1675,32 @@ with tab2:
                     if column in fresh_candidates_df.columns
                 ]
 
-                st.dataframe(
-                    fresh_candidates_df[fresh_candidate_columns].head(25),
-                    use_container_width=True,
-                )
+                fresh_display_df = fresh_candidates_df[fresh_candidate_columns].head(25).copy()
+
+                for _, fresh_row in fresh_display_df.head(12).iterrows():
+                    action_value = fresh_row.get("Final Allocation Action", "NA")
+
+                    render_mobile_card(
+                        title=fresh_row.get("Stock", "Unknown"),
+                        kicker="Fresh Candidate",
+                        fields=[
+                            ("Engines", fresh_row.get("Engines Present", "NA")),
+                            ("Screeners", fresh_row.get("Screeners Present", "NA")),
+                            ("Appearances", fresh_row.get("Appearance Count", "NA")),
+                            ("Conviction", fresh_row.get("Best Conviction Level", "NA")),
+                            ("Conviction Score", fresh_row.get("Best Conviction Score", "NA")),
+                            ("Suggested Position", f"{fresh_row.get('Highest Suggested Position %', 'NA')}%"),
+                            ("Action", action_value),
+                            ("Worst Risk", fresh_row.get("Worst Risk Level", "NA")),
+                            ("Exit Verdicts", fresh_row.get("Exit Verdicts", "NA")),
+                        ],
+                        note="Candidate appears in the current Stock Master View but is not present in uploaded portfolio holdings.",
+                        tone="good" if "HIGH" in str(action_value).upper() or "NORMAL" in str(action_value).upper() else "info",
+                        badges=[fresh_row.get("Best Conviction Level", "NA"), action_value],
+                    )
+
+                with st.expander("View full fresh candidates table"):
+                    st.dataframe(fresh_display_df, use_container_width=True)
             else:
                 st.info("Fresh candidates need screener files first, then portfolio file.")
 
@@ -1444,10 +1724,13 @@ with tab2:
 
             st.subheader("🚨 Risk Flags")
             for flag in portfolio_risk_flags(portfolio_df):
-                if "No major" in flag:
-                    st.success(flag)
-                else:
-                    st.warning(flag)
+                render_mobile_card(
+                    title="Risk Flag",
+                    kicker="Portfolio Risk",
+                    fields=[],
+                    note=flag,
+                    tone="good" if "No major" in flag else "warn",
+                )
     else:
         st.info("Upload a holdings-level portfolio CSV to begin.")
 
@@ -1474,6 +1757,8 @@ st.divider()
 # Decision Journal Tab
 # --------------------------------------------------
 with tab3:
+    render_section_card("Decision Journal", "Review the audit trail for decisions. Later this can become a full logging layer with one-click decision capture.")
+
     st.subheader("📝 Decision Journal")
 
     st.write(
@@ -1510,7 +1795,20 @@ with tab3:
     else:
         st.success("Decision journal loaded successfully.")
 
-    st.dataframe(journal_df, use_container_width=True)
+    if not journal_df.empty:
+        for _, journal_row in journal_df.head(10).iterrows():
+            render_mobile_card(
+                title=journal_row.get("Stock", "Decision"),
+                kicker=journal_row.get("Date", "Decision Journal"),
+                fields=[(column, journal_row.get(column, "NA")) for column in journal_df.columns if column not in ["Stock", "Date"]][:6],
+                note="",
+                tone="info",
+            )
+
+        with st.expander("View full decision journal table"):
+            st.dataframe(journal_df, use_container_width=True)
+    else:
+        st.dataframe(journal_df, use_container_width=True)
 
     csv_data = journal_df.to_csv(index=False).encode("utf-8")
 
@@ -1551,4 +1849,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Premium white dashboard UI loaded successfully.")
+st.success("Mobile card layout and premium white dashboard UI loaded successfully.")
