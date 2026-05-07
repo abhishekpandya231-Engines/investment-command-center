@@ -37,6 +37,218 @@ st.set_page_config(
     layout="wide"
 )
 
+
+# --------------------------------------------------
+# Premium White UI Theme
+# --------------------------------------------------
+st.markdown(
+    """
+    <style>
+        :root {
+            --icc-bg: #F6F8FC;
+            --icc-card: #FFFFFF;
+            --icc-border: #E5E7EB;
+            --icc-text: #111827;
+            --icc-muted: #6B7280;
+            --icc-navy: #0B1F3A;
+            --icc-blue: #2563EB;
+            --icc-green: #047857;
+            --icc-amber: #B45309;
+            --icc-red: #B91C1C;
+            --icc-gold: #B08D57;
+        }
+
+        .stApp {
+            background: linear-gradient(180deg, #FFFFFF 0%, var(--icc-bg) 100%) !important;
+            color: var(--icc-text) !important;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            background: linear-gradient(180deg, #FFFFFF 0%, var(--icc-bg) 100%) !important;
+        }
+
+        [data-testid="stHeader"] {
+            background: rgba(255, 255, 255, 0.88) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--icc-border);
+        }
+
+        [data-testid="block-container"] {
+            max-width: 1180px;
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+        }
+
+        h1, h2, h3 {
+            color: var(--icc-navy) !important;
+            letter-spacing: -0.03em;
+            font-weight: 800 !important;
+        }
+
+        p, span, label, div {
+            color: inherit;
+        }
+
+        div[data-testid="stMetric"] {
+            background: var(--icc-card);
+            border: 1px solid var(--icc-border);
+            border-radius: 20px;
+            padding: 18px 18px 16px 18px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+            min-height: 118px;
+        }
+
+        div[data-testid="stMetricLabel"] {
+            color: var(--icc-muted) !important;
+            font-weight: 700;
+            font-size: 0.88rem;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: var(--icc-navy) !important;
+            font-weight: 850;
+            letter-spacing: -0.04em;
+        }
+
+        div[data-testid="stAlert"] {
+            border-radius: 18px;
+            border: 1px solid var(--icc-border);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+            background: #EEF2F7;
+            padding: 8px;
+            border-radius: 18px;
+            border: 1px solid var(--icc-border);
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            height: 48px;
+            background: #FFFFFF;
+            border-radius: 14px;
+            border: 1px solid #E5E7EB;
+            color: var(--icc-navy);
+            font-weight: 750;
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background: var(--icc-navy) !important;
+            color: #FFFFFF !important;
+            border-color: var(--icc-navy) !important;
+        }
+
+        div[data-testid="stDataFrame"] {
+            border: 1px solid var(--icc-border);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+            background: #FFFFFF;
+        }
+
+        [data-testid="stFileUploader"] {
+            background: #FFFFFF;
+            border: 1px dashed #CBD5E1;
+            border-radius: 20px;
+            padding: 12px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        button[kind="primary"], .stDownloadButton button, .stButton button {
+            border-radius: 14px !important;
+            border: 1px solid var(--icc-navy) !important;
+            background: var(--icc-navy) !important;
+            color: #FFFFFF !important;
+            font-weight: 750 !important;
+        }
+
+        hr {
+            border-color: #E5E7EB !important;
+            margin-top: 2rem !important;
+            margin-bottom: 2rem !important;
+        }
+
+        section[data-testid="stSidebar"] {
+            background: #FFFFFF !important;
+            border-right: 1px solid var(--icc-border);
+        }
+
+        .icc-hero {
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 28%),
+                        linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 55%, #EEF2FF 100%);
+            border: 1px solid var(--icc-border);
+            border-radius: 28px;
+            padding: 28px 28px 24px 28px;
+            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+            margin-bottom: 22px;
+        }
+
+        .icc-hero-title {
+            color: var(--icc-navy);
+            font-size: clamp(2.2rem, 5vw, 4rem);
+            line-height: 0.98;
+            font-weight: 900;
+            letter-spacing: -0.055em;
+            margin: 0;
+        }
+
+        .icc-hero-subtitle {
+            color: var(--icc-muted);
+            font-size: 1.05rem;
+            font-weight: 650;
+            margin-top: 12px;
+        }
+
+        .icc-pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .icc-pill {
+            border-radius: 999px;
+            padding: 8px 12px;
+            background: #FFFFFF;
+            border: 1px solid #DDE3EA;
+            color: var(--icc-navy);
+            font-weight: 750;
+            font-size: 0.86rem;
+        }
+
+        @media (max-width: 640px) {
+            [data-testid="block-container"] {
+                padding-left: 1rem;
+                padding-right: 1rem;
+                padding-top: 1.2rem;
+            }
+
+            div[data-testid="stMetric"] {
+                min-height: 96px;
+                padding: 14px;
+                border-radius: 18px;
+            }
+
+            .icc-hero {
+                padding: 22px 20px;
+                border-radius: 22px;
+            }
+
+            .stTabs [data-baseweb="tab"] {
+                height: 44px;
+                padding-left: 12px;
+                padding-right: 12px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --------------------------------------------------
 # Session Helpers
 # --------------------------------------------------
@@ -337,8 +549,21 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list:
 # --------------------------------------------------
 # Header
 # --------------------------------------------------
-st.title("📊 Investment Command Center")
-st.caption("Rules-Based Portfolio Intelligence System | v1.1.4")
+st.markdown(
+    """
+    <div class="icc-hero">
+        <div class="icc-hero-title">📊 Investment<br>Command Center</div>
+        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.0</div>
+        <div class="icc-pill-row">
+            <div class="icc-pill">White Premium UI</div>
+            <div class="icc-pill">Rules-Based</div>
+            <div class="icc-pill">Portfolio Intelligence</div>
+            <div class="icc-pill">Mobile Optimised</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
@@ -390,10 +615,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.1.4")
+    st.metric("System Version", "v1.2.0")
 
 with col2:
-    st.metric("Build Stage", "Stock Master Persisted")
+    st.metric("Build Stage", "Premium White UI")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -442,7 +667,7 @@ st.divider()
 # --------------------------------------------------
 # Tabs
 # --------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📂 Screener Upload", "📁 Portfolio Upload", "📝 Decision Journal"])
+tab1, tab2, tab3 = st.tabs(["📂 Screener Intelligence", "💼 Portfolio Command", "🧾 Decision Journal"])
 
 # --------------------------------------------------
 # Screener Upload Tab
@@ -1007,7 +1232,7 @@ with tab2:
         if missing_columns:
             st.error("Your uploaded file is missing required portfolio columns:")
             st.write(missing_columns)
-            st.warning("This looks like a screener CSV, not a holdings portfolio CSV. Please upload screener files in the Screener Upload tab.")
+            st.warning("This looks like a screener CSV, not a holdings portfolio CSV. Please upload screener files in the Screener Intelligence tab.")
         else:
             portfolio_df = calculate_portfolio_from_holdings(portfolio_df)
             portfolio_df = apply_exit_engine(portfolio_df, engine_a_score=engine_a_score)
@@ -1326,4 +1551,4 @@ modules = pd.DataFrame(
 
 st.dataframe(modules, use_container_width=True)
 
-st.success("Portfolio Compatibility Engine loaded successfully.")
+st.success("Premium white dashboard UI loaded successfully.")
