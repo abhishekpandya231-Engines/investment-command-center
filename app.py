@@ -26,12 +26,12 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.4.3
-# Persistent Refresh Cache + Clean Plain Notes
+# Investment Command Center v1.4.4
+# Persistent Refresh Cache + Deep Clean Plain Notes
 # ==================================================
 
-APP_VERSION = "v1.4.3"
-BUILD_STAGE = "Persistent Analyst Cache"
+APP_VERSION = "v1.4.4"
+BUILD_STAGE = "Clean Notes + Persistent Cache"
 LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -490,18 +490,36 @@ def esc(value: Any, default: str = "NA") -> str:
 
 
 def html_to_plain_text(value: Any, default: str = "") -> str:
-    """Convert any saved HTML/card markup into clean readable text for display."""
-    raw = safe_value(value, default=default)
-    text = html.unescape(str(raw if raw is not None else default))
+    """Convert saved HTML/card markup into clean readable text for display.
 
-    # Some older saved rows accidentally stored full card/note HTML.
-    # Strip complete tags first, then remove any broken tag fragment left by truncation.
+    Earlier builds sometimes saved already-rendered HTML inside note columns.
+    This function repeatedly unescapes and strips tags so old cached rows also render cleanly.
+    """
+    raw = safe_value(value, default=default)
+    text = str(raw if raw is not None else default)
+
+    # Handle double/triple-escaped HTML such as &amp;lt;div...&amp;gt;
+    for _ in range(5):
+        unescaped = html.unescape(text)
+        if unescaped == text:
+            break
+        text = unescaped
+
+    # Normalise escaped tag fragments that may survive from old cache rows.
+    text = text.replace("&lt;", "<").replace("&gt;", ">")
+
+    # Strip complete HTML tags and broken/truncated tag fragments.
     text = re.sub(r"<\s*br\s*/?\s*>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"</\s*(div|p|li|span|section|article)\s*>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"</\s*(div|p|li|span|section|article|strong|b|em|i)\s*>", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]*>", " ", text)
     text = re.sub(r"<[^\n\r]*$", " ", text)
-    text = re.sub(r"[{}]", " ", text)
+
+    # Remove leftover attribute fragments from broken HTML.
     text = re.sub(r"\bclass\s*=\s*['\"][^'\"]*['\"]", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bid\s*=\s*['\"][^'\"]*['\"]", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bstyle\s*=\s*['\"][^'\"]*['\"]", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"[/<>][^A-Za-z0-9₹%.,;:()\- ]*", " ", text)
+    text = re.sub(r"[{}]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
