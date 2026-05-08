@@ -1560,6 +1560,7 @@ with tabs[7]:
     portfolio_df = get_active_portfolio_df()
     compatibility_df = st.session_state.get("portfolio_compatibility_df", None)
 
+    market_regime = engine_a_result.get("regime", "UNKNOWN")
     market_tone = "Supportive" if engine_a_score >= 70 else "Selective" if engine_a_score >= 50 else "Defensive"
     market_comment = (
         "Market gate is supportive. Fresh deployment may be considered only where stock-level risk and conviction are also aligned."
