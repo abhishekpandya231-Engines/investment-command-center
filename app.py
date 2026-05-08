@@ -1,6 +1,7 @@
 from datetime import datetime
 import html
 import re
+from pathlib import Path
 from typing import Any, Iterable, Optional
 
 import pandas as pd
@@ -25,12 +26,12 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.4.2
-# Compact Mobile Cards + Bulletproof Light Tab Visibility
+# Investment Command Center v1.4.3
+# Persistent Refresh Cache + Clean Plain Notes
 # ==================================================
 
-APP_VERSION = "v1.4.2"
-BUILD_STAGE = "Compact Mobile Analyst"
+APP_VERSION = "v1.4.3"
+BUILD_STAGE = "Persistent Analyst Cache"
 LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -62,6 +63,13 @@ SCREENER_KEY_COLUMNS = [
     "1Y High",
     "NSE Code",
 ]
+
+CACHE_DIR = Path("data") / "icc_cache"
+COMBINED_CACHE = CACHE_DIR / "combined_screeners.csv"
+STOCK_MASTER_CACHE = CACHE_DIR / "stock_master.csv"
+PORTFOLIO_CACHE = CACHE_DIR / "portfolio.csv"
+COMPATIBILITY_CACHE = CACHE_DIR / "portfolio_compatibility.csv"
+
 
 
 # --------------------------------------------------
@@ -483,11 +491,17 @@ def esc(value: Any, default: str = "NA") -> str:
 
 def html_to_plain_text(value: Any, default: str = "") -> str:
     """Convert any saved HTML/card markup into clean readable text for display."""
-    text = safe_value(value, default=default)
-    text = html.unescape(text)
+    raw = safe_value(value, default=default)
+    text = html.unescape(str(raw if raw is not None else default))
+
+    # Some older saved rows accidentally stored full card/note HTML.
+    # Strip complete tags first, then remove any broken tag fragment left by truncation.
     text = re.sub(r"<\s*br\s*/?\s*>", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"</\s*(div|p|li|span|section|article)\s*>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"<[^>]*>", " ", text)
+    text = re.sub(r"<[^\n\r]*$", " ", text)
+    text = re.sub(r"[{}]", " ", text)
+    text = re.sub(r"\bclass\s*=\s*['\"][^'\"]*['\"]", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -789,10 +803,56 @@ def portfolio_risk_flags(df: pd.DataFrame) -> list[str]:
     return flags or ["No major concentration risk flags detected."]
 
 
+def ensure_cache_dir() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def save_cache_df(df: Optional[pd.DataFrame], path: Path) -> None:
+    if isinstance(df, pd.DataFrame) and not df.empty:
+        ensure_cache_dir()
+        df.to_csv(path, index=False)
+
+
+def load_cache_df(path: Path) -> Optional[pd.DataFrame]:
+    try:
+        if path.exists() and path.stat().st_size > 0:
+            df = pd.read_csv(path)
+            if not df.empty:
+                return df
+    except Exception:
+        return None
+    return None
+
+
+def load_persistent_cache() -> None:
+    """Restore uploaded data after browser refresh/reconnect."""
+    cache_map = {
+        "combined_df": COMBINED_CACHE,
+        "stock_master_df": STOCK_MASTER_CACHE,
+        "portfolio_df": PORTFOLIO_CACHE,
+        "portfolio_compatibility_df": COMPATIBILITY_CACHE,
+    }
+    for key, path in cache_map.items():
+        if key not in st.session_state:
+            cached_df = load_cache_df(path)
+            if cached_df is not None:
+                st.session_state[key] = cached_df
+    if isinstance(st.session_state.get("stock_master_df"), pd.DataFrame) and not st.session_state["stock_master_df"].empty:
+        st.session_state["stock_master_ready"] = True
+
+
+def save_all_active_cache() -> None:
+    save_cache_df(st.session_state.get("combined_df"), COMBINED_CACHE)
+    save_cache_df(st.session_state.get("stock_master_df"), STOCK_MASTER_CACHE)
+    save_cache_df(st.session_state.get("portfolio_df"), PORTFOLIO_CACHE)
+    save_cache_df(st.session_state.get("portfolio_compatibility_df"), COMPATIBILITY_CACHE)
+
+
 def save_stock_master_to_session(stock_master_df: pd.DataFrame) -> None:
     if stock_master_df is not None and not stock_master_df.empty:
         st.session_state["stock_master_df"] = stock_master_df.copy()
         st.session_state["stock_master_ready"] = True
+        save_cache_df(stock_master_df, STOCK_MASTER_CACHE)
 
 
 def get_active_stock_master_df() -> Optional[pd.DataFrame]:
@@ -822,6 +882,7 @@ def update_portfolio_compatibility() -> None:
     if portfolio_df is not None and stock_master_df is not None:
         compatibility_df = evaluate_portfolio_holdings(portfolio_df, stock_master_df)
         st.session_state["portfolio_compatibility_df"] = compatibility_df
+        save_cache_df(compatibility_df, COMPATIBILITY_CACHE)
 
 
 def process_screener_files(screener_files, engine_a_score: float, market_regime: str) -> Optional[pd.DataFrame]:
@@ -848,7 +909,9 @@ def process_screener_files(screener_files, engine_a_score: float, market_regime:
     stock_master_df = create_stock_master_view(combined_df)
     save_stock_master_to_session(stock_master_df)
     st.session_state["combined_df"] = combined_df.copy()
+    save_cache_df(combined_df, COMBINED_CACHE)
     update_portfolio_compatibility()
+    save_all_active_cache()
     return combined_df
 
 
@@ -871,7 +934,9 @@ def process_portfolio_file(portfolio_file, engine_a_score: float, market_regime:
         market_regime=market_regime,
     )
     st.session_state["portfolio_df"] = portfolio_df.copy()
+    save_cache_df(portfolio_df, PORTFOLIO_CACHE)
     update_portfolio_compatibility()
+    save_all_active_cache()
     return portfolio_df, []
 
 
@@ -943,6 +1008,9 @@ engine_a_inputs = render_engine_a_sidebar()
 engine_a_result = calculate_engine_a_score(engine_a_inputs)
 engine_a_score = engine_a_result["score"]
 st.session_state["engine_a_result"] = engine_a_result
+load_persistent_cache()
+update_portfolio_compatibility()
+save_all_active_cache()
 
 
 # --------------------------------------------------
