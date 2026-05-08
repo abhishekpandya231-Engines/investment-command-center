@@ -24,12 +24,12 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.3.1
-# Navigation + Command Center Restructure + Tab Visibility Fix
+# Investment Command Center v1.4.1
+# AI Analyst Column Mapping Fix + Tab Visibility Hardening
 # ==================================================
 
-APP_VERSION = "v1.4.0"
-BUILD_STAGE = "AI Analyst Layer Connected"
+APP_VERSION = "v1.4.1"
+BUILD_STAGE = "AI Analyst Layer Fixed"
 LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -395,6 +395,31 @@ st.markdown(
             font-weight: 900 !important;
         }
 
+
+        .stTabs [aria-selected="true"],
+        .stTabs [aria-selected="true"] *,
+        .stTabs [aria-selected="true"] p,
+        .stTabs [aria-selected="true"] span,
+        .stTabs [aria-selected="true"] div,
+        .stTabs button[role="tab"][aria-selected="true"],
+        .stTabs button[role="tab"][aria-selected="true"] * {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #ffffff !important;
+            text-shadow: none !important;
+        }
+
+        .stTabs [aria-selected="false"],
+        .stTabs [aria-selected="false"] *,
+        .stTabs [aria-selected="false"] p,
+        .stTabs [aria-selected="false"] span,
+        .stTabs [aria-selected="false"] div,
+        .stTabs button[role="tab"][aria-selected="false"],
+        .stTabs button[role="tab"][aria-selected="false"] * {
+            color: var(--icc-navy) !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: var(--icc-navy) !important;
+        }
 
         .stTabs [data-baseweb="tab-highlight"] {
             background-color: var(--icc-blue) !important;
@@ -1560,6 +1585,39 @@ with tabs[7]:
     portfolio_df = get_active_portfolio_df()
     compatibility_df = st.session_state.get("portfolio_compatibility_df", None)
 
+    def row_value(row: pd.Series, *columns: str, default: Any = "NA") -> Any:
+        """Safely fetch the first available non-empty value from a row."""
+        for column in columns:
+            if column in row.index:
+                value = row.get(column)
+                try:
+                    if pd.isna(value):
+                        continue
+                except Exception:
+                    pass
+                if str(value).strip() != "":
+                    return value
+        return default
+
+    def sort_if_present(df: pd.DataFrame, columns: list[str], ascending: list[bool]) -> pd.DataFrame:
+        available_cols = [column for column in columns if column in df.columns]
+        if not available_cols:
+            return df
+        available_ascending = [ascending[columns.index(column)] for column in available_cols]
+        return df.sort_values(available_cols, ascending=available_ascending)
+
+    def percent_value(value: Any) -> Any:
+        text = safe_value(value, default="NA")
+        if text in ["NA", ""] or "%" in text:
+            return text
+        return f"{text}%"
+
+    def score_value(value: Any) -> Any:
+        text = safe_value(value, default="NA")
+        if text in ["NA", ""] or "/" in text:
+            return text
+        return f"{text}/100"
+
     market_regime = engine_a_result.get("regime", "UNKNOWN")
     market_tone = "Supportive" if engine_a_score >= 70 else "Selective" if engine_a_score >= 50 else "Defensive"
     market_comment = (
@@ -1589,51 +1647,47 @@ with tabs[7]:
     if stock_master_df is not None and not stock_master_df.empty:
         st.markdown("### 🎯 Analyst Priority Queue")
         analyst_candidates = stock_master_df.copy()
-
-        candidate_sort_cols = []
-        candidate_ascending = []
-        if "Best Conviction Score" in analyst_candidates.columns:
-            candidate_sort_cols.append("Best Conviction Score")
-            candidate_ascending.append(False)
-        elif "Conviction Score" in analyst_candidates.columns:
-            candidate_sort_cols.append("Conviction Score")
-            candidate_ascending.append(False)
-
-        if "Appearances" in analyst_candidates.columns:
-            candidate_sort_cols.append("Appearances")
-            candidate_ascending.append(False)
-
-        if candidate_sort_cols:
-            analyst_candidates = analyst_candidates.sort_values(candidate_sort_cols, ascending=candidate_ascending)
+        analyst_candidates = sort_if_present(
+            analyst_candidates,
+            ["Best Conviction Score", "Appearance Count", "Highest Suggested Position %"],
+            [False, False, False],
+        )
 
         for _, row in analyst_candidates.head(8).iterrows():
-            stock_name = row.get("Stock", "Unknown Stock")
-            conviction = row.get("Best Conviction", row.get("Conviction", row.get("Conviction Level", "NA")))
-            score = row.get("Best Conviction Score", row.get("Conviction Score", "NA"))
-            action = row.get("Final Action", row.get("Position Action", row.get("Action", "Review")))
-            risk = row.get("Worst Risk", row.get("Risk Level", "NA"))
-            screeners = row.get("Screeners", row.get("Screener", "NA"))
+            stock_name = row_value(row, "Stock", default="Unknown Stock")
+            conviction = row_value(row, "Best Conviction Level", "Conviction Level", default="NA")
+            score = row_value(row, "Best Conviction Score", "Conviction Score", default="NA")
+            action = row_value(row, "Final Allocation Action", "Position Action", default="Review")
+            risk = row_value(row, "Worst Risk Level", "Risk Level", default="NA")
+            screeners = row_value(row, "Screeners Present", "Screener", default="NA")
+            engines = row_value(row, "Engines Present", "Engine", default="NA")
+            appearances = row_value(row, "Appearance Count", default="NA")
+            position_size = row_value(row, "Highest Suggested Position %", "Suggested Position Size %", default="NA")
+            master_note = row_value(row, "Combined Notes", "Conviction Notes", "Position Sizing Reason", default="")
 
-            note_parts = [
-                f"Candidate appears in {row.get('Appearances', 'NA')} screener appearance(s)." if "Appearances" in row else "",
-                f"Screeners: {screeners}." if str(screeners) != "NA" else "",
-                "Review for allocation only after portfolio concentration and liquidity checks.",
-            ]
-            note = " ".join(part for part in note_parts if part)
+            if safe_value(master_note, default="") == "":
+                master_note = (
+                    f"Appears in engine(s): {engines}. Screeners: {screeners}. "
+                    f"Best conviction: {conviction} with score {score}. "
+                    f"Suggested position: {position_size}%. Worst risk level: {risk}."
+                )
 
-            accent = "#047857" if "HIGH" in str(conviction).upper() or "HIGH" in str(action).upper() else "#2563eb"
             record_card(
                 stock_name,
                 kicker="Analyst Priority Candidate",
                 fields=[
                     ("Conviction", conviction),
-                    ("Score", score),
+                    ("Score", score_value(score)),
                     ("Action", action),
                     ("Risk", risk),
+                    ("Engines", engines),
+                    ("Appearances", appearances),
+                    ("Suggested Position", percent_value(position_size)),
+                    ("Screeners", screeners),
                 ],
-                note=note,
-                badges=[action, risk],
-                accent=accent,
+                note=master_note,
+                badges=[conviction, action, risk],
+                accent=accent_from_status(action if safe_value(action) != "NA" else conviction),
             )
     else:
         alert_box("Stock Master is not available yet. Upload the 5 screener files first.", "warning")
@@ -1644,31 +1698,37 @@ with tabs[7]:
         if "Risk Score" in risk_df.columns:
             risk_df = risk_df.sort_values("Risk Score", ascending=False)
         elif "Risk Level" in risk_df.columns:
-            risk_df["_risk_order"] = risk_df["Risk Level"].astype(str).str.upper().map({"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "LOW": 1}).fillna(0)
+            risk_df["_risk_order"] = risk_df["Risk Level"].astype(str).str.upper().map(
+                {"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "LOW": 1}
+            ).fillna(0)
             risk_df = risk_df.sort_values("_risk_order", ascending=False)
 
         for _, row in risk_df.head(6).iterrows():
-            stock_name = row.get("Stock", "Unknown Stock")
-            risk_level = row.get("Risk Level", "NA")
-            risk_score = row.get("Risk Score", "NA")
-            exit_verdict = row.get("Exit Verdict", "NA")
-            rule_verdict = row.get("Rule Verdict", "NA")
-            screener = row.get("Screener", "NA")
-            note = row.get("Risk Note", row.get("Notes", "Review valuation, trend, leverage, and exit verdict before deployment."))
+            risk_level = row_value(row, "Risk Level", default="NA")
+            risk_score = row_value(row, "Risk Score", default="NA")
+            exit_verdict = row_value(row, "Exit Verdict", default="NA")
+            rule_verdict = row_value(row, "Rule Verdict", default="NA")
+            screener = row_value(row, "Screener", default="NA")
+            note = row_value(
+                row,
+                "Risk Notes",
+                "Risk Note",
+                "Exit Reason",
+                default="Review valuation, trend, leverage, and exit verdict before deployment.",
+            )
 
-            accent = "#b91c1c" if str(risk_level).upper() in ["HIGH", "CRITICAL"] else "#b45309" if str(risk_level).upper() == "MODERATE" else "#047857"
             record_card(
-                stock_name,
-                kicker=f"Engine {row.get('Engine', 'NA')} | {screener}",
+                row_value(row, "Stock", default="Unknown Stock"),
+                kicker=f"Engine {row_value(row, 'Engine', default='NA')} | {screener}",
                 fields=[
                     ("Risk Level", risk_level),
-                    ("Risk Score", risk_score),
+                    ("Risk Score", score_value(risk_score)),
                     ("Exit Verdict", exit_verdict),
                     ("Rule Verdict", rule_verdict),
                 ],
                 note=note,
                 badges=[risk_level, exit_verdict],
-                accent=accent,
+                accent=accent_from_status(risk_level),
             )
 
     if portfolio_df is not None and not portfolio_df.empty:
@@ -1698,22 +1758,37 @@ with tabs[7]:
     if isinstance(compatibility_df, pd.DataFrame) and not compatibility_df.empty:
         st.markdown("### 🧩 Compatibility Analyst Notes")
         top_compat = compatibility_df.copy()
-        if "Compatibility Score" in top_compat.columns:
-            top_compat = top_compat.sort_values("Compatibility Score", ascending=False)
-        for _, row in top_compat.head(5).iterrows():
+        top_compat = sort_if_present(
+            top_compat,
+            ["Portfolio Compatibility Score", "Portfolio Weight %"],
+            [True, False],
+        )
+        for _, row in top_compat.head(8).iterrows():
+            status = row_value(row, "Portfolio Status", default="NA")
+            master_conviction = row_value(row, "Master Conviction Level", default="NA")
+            master_action = row_value(row, "Master Allocation Action", default="NA")
+            compatibility_score = row_value(row, "Portfolio Compatibility Score", default="NA")
+            compatibility_action = row_value(row, "Portfolio Compatibility Action", default="Review")
+            compatibility_note = row_value(
+                row,
+                "Portfolio Compatibility Notes",
+                default="Review holding against current stock master view.",
+            )
+
             record_card(
-                row.get("Stock", "Unknown Stock"),
+                row_value(row, "Stock", default="Unknown Stock"),
                 kicker="Portfolio Compatibility",
                 fields=[
-                    ("Status", row.get("Status", "NA")),
-                    ("Master Conviction", row.get("Master Conviction", "NA")),
-                    ("Master Action", row.get("Master Action", "NA")),
-                    ("Compatibility Score", row.get("Compatibility Score", "NA")),
-                    ("Action", row.get("Compatibility Action", row.get("Action", "Review"))),
+                    ("Portfolio Weight", percent_value(row_value(row, "Portfolio Weight %", default="NA"))),
+                    ("Status", status),
+                    ("Master Conviction", master_conviction),
+                    ("Master Action", master_action),
+                    ("Compatibility Score", score_value(compatibility_score)),
+                    ("Action", compatibility_action),
                 ],
-                note=row.get("Compatibility Note", "Review holding against current stock master view."),
-                badges=[row.get("Status", "NA"), row.get("Compatibility Action", row.get("Action", "Review"))],
-                accent="#0f766e",
+                note=compatibility_note,
+                badges=[status, compatibility_action],
+                accent=accent_from_status(compatibility_action),
             )
 
 
@@ -1730,7 +1805,7 @@ with tabs[8]:
     modules_df = pd.DataFrame(
         [
             {"Module": "White Premium UI", "Status": f"Connected {APP_VERSION}"},
-            {"Module": "Navigation Tabs", "Status": "Connected v1.4.0"},
+            {"Module": "Navigation Tabs", "Status": "Connected v1.4.1"},
             {"Module": "Engine A Market Gate", "Status": "Connected v0.2"},
             {"Module": "Engine B Momentum", "Status": "Rules Connected"},
             {"Module": "Engine C Value", "Status": "Rules Connected"},
@@ -1742,8 +1817,8 @@ with tabs[8]:
             {"Module": "Stock Master View", "Status": "Connected v0.1"},
             {"Module": "Portfolio Compatibility", "Status": "Connected v0.1"},
             {"Module": "Decision Journal", "Status": "Connected v0.1"},
-            {"Module": "AI Analyst Layer", "Status": "Connected v0.1"},
+            {"Module": "AI Analyst Layer", "Status": "Column mapping fixed v0.2"},
         ]
     )
     compact_dataframe(modules_df, height=520)
-    alert_box("v1.4.0 AI Analyst Layer connected. Previous dashboard modules and tab visibility fixes are preserved.", "success")
+    alert_box("v1.4.1 AI Analyst column mapping fixed. Previous dashboard modules and tab visibility fixes are preserved.", "success")
