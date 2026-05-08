@@ -24,12 +24,12 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.4.1
-# AI Analyst Column Mapping Fix + Tab Visibility Hardening
+# Investment Command Center v1.4.2
+# Compact Mobile Cards + Bulletproof Light Tab Visibility
 # ==================================================
 
-APP_VERSION = "v1.4.1"
-BUILD_STAGE = "AI Analyst Layer Fixed"
+APP_VERSION = "v1.4.2"
+BUILD_STAGE = "Compact Mobile Analyst"
 LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -374,17 +374,19 @@ st.markdown(
         }
 
         .stTabs [aria-selected="true"] {
-            background: var(--icc-navy) !important;
-            color: #ffffff !important;
-            border: 1px solid var(--icc-navy) !important;
-            box-shadow: 0 10px 22px rgba(8, 33, 63, 0.18) !important;
+            background: #eef5ff !important;
+            color: var(--icc-navy) !important;
+            border: 1px solid #bfdbfe !important;
+            box-shadow: inset 0 -3px 0 var(--icc-blue), 0 10px 22px rgba(8, 33, 63, 0.10) !important;
         }
 
         .stTabs [aria-selected="true"] p,
         .stTabs [aria-selected="true"] span,
         .stTabs [aria-selected="true"] div {
-            color: #ffffff !important;
+            color: var(--icc-navy) !important;
             font-weight: 950 !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: var(--icc-navy) !important;
         }
 
         .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p,
@@ -403,9 +405,9 @@ st.markdown(
         .stTabs [aria-selected="true"] div,
         .stTabs button[role="tab"][aria-selected="true"],
         .stTabs button[role="tab"][aria-selected="true"] * {
-            color: #ffffff !important;
+            color: var(--icc-navy) !important;
             opacity: 1 !important;
-            -webkit-text-fill-color: #ffffff !important;
+            -webkit-text-fill-color: var(--icc-navy) !important;
             text-shadow: none !important;
         }
 
@@ -437,10 +439,20 @@ st.markdown(
         @media (max-width: 768px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
             .icc-hero { padding: 26px 22px; border-radius: 28px; }
-            .icc-fields { grid-template-columns: 1fr; gap: 8px; }
-            .icc-card { padding: 20px 18px 20px 20px; border-radius: 26px; }
-            .icc-field { padding: 10px 12px; min-height: 52px; }
-            .icc-note { padding: 12px 14px; }
+            .icc-hero-title { font-size: 2.35rem; line-height: 0.98; }
+            .icc-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+            .icc-card { padding: 18px 16px 18px 20px; border-radius: 26px; margin: 0.62rem 0 0.85rem 0; }
+            .icc-card-title { font-size: 1.08rem; margin-bottom: 8px; }
+            .icc-card-kicker { font-size: 0.68rem; letter-spacing: 0.14em; }
+            .icc-field { padding: 9px 10px; min-height: 48px; border-radius: 15px; }
+            .icc-field-label { font-size: 0.72rem; }
+            .icc-field-value { font-size: 0.88rem; line-height: 1.25; }
+            .icc-note { padding: 11px 12px; font-size: 0.90rem; line-height: 1.45; }
+            .icc-badge { padding: 7px 10px; font-size: 0.75rem; }
+        }
+
+        @media (max-width: 360px) {
+            .icc-fields { grid-template-columns: 1fr; }
         }
     </style>
     """,
@@ -1805,7 +1817,7 @@ with tabs[8]:
     modules_df = pd.DataFrame(
         [
             {"Module": "White Premium UI", "Status": f"Connected {APP_VERSION}"},
-            {"Module": "Navigation Tabs", "Status": "Connected v1.4.1"},
+            {"Module": "Navigation Tabs", "Status": "Light active tab fix v1.4.2"},
             {"Module": "Engine A Market Gate", "Status": "Connected v0.2"},
             {"Module": "Engine B Momentum", "Status": "Rules Connected"},
             {"Module": "Engine C Value", "Status": "Rules Connected"},
@@ -1821,4 +1833,4 @@ with tabs[8]:
         ]
     )
     compact_dataframe(modules_df, height=520)
-    alert_box("v1.4.1 AI Analyst column mapping fixed. Previous dashboard modules and tab visibility fixes are preserved.", "success")
+    alert_box("v1.4.2 compact mobile cards added. Active tabs now use light-blue selection so tab text remains visible on mobile.", "success")
