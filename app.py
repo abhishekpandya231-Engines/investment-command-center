@@ -24,13 +24,13 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.3.0
-# Navigation + Command Center Restructure
+# Investment Command Center v1.3.1
+# Navigation + Command Center Restructure + Tab Visibility Fix
 # ==================================================
 
-APP_VERSION = "v1.3.0"
-BUILD_STAGE = "Command Center Navigation"
-LAST_UPDATED = "07 May 2026"
+APP_VERSION = "v1.4.0"
+BUILD_STAGE = "AI Analyst Layer Connected"
+LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
     "Stock",
@@ -346,16 +346,59 @@ st.markdown(
         }
 
         .stTabs [data-baseweb="tab"] {
-            border-radius: 999px;
-            padding: 10px 15px;
-            font-weight: 900;
-            color: #475569;
-            white-space: nowrap;
+            border-radius: 999px !important;
+            padding: 10px 15px !important;
+            font-weight: 900 !important;
+            color: var(--icc-navy) !important;
+            white-space: nowrap !important;
+            background: #ffffff !important;
+            border: 1px solid transparent !important;
+        }
+
+        .stTabs [data-baseweb="tab"] p,
+        .stTabs [data-baseweb="tab"] span,
+        .stTabs [data-baseweb="tab"] div {
+            color: var(--icc-navy) !important;
+            font-weight: 900 !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #eef5ff !important;
+            color: var(--icc-navy) !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover p,
+        .stTabs [data-baseweb="tab"]:hover span,
+        .stTabs [data-baseweb="tab"]:hover div {
+            color: var(--icc-navy) !important;
         }
 
         .stTabs [aria-selected="true"] {
             background: var(--icc-navy) !important;
             color: #ffffff !important;
+            border: 1px solid var(--icc-navy) !important;
+            box-shadow: 0 10px 22px rgba(8, 33, 63, 0.18) !important;
+        }
+
+        .stTabs [aria-selected="true"] p,
+        .stTabs [aria-selected="true"] span,
+        .stTabs [aria-selected="true"] div {
+            color: #ffffff !important;
+            font-weight: 950 !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p,
+        .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) span,
+        .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) div {
+            color: var(--icc-navy) !important;
+            opacity: 1 !important;
+            font-weight: 900 !important;
+        }
+
+
+        .stTabs [data-baseweb="tab-highlight"] {
+            background-color: var(--icc-blue) !important;
+            height: 3px !important;
         }
 
         div[data-testid="stExpander"] {
@@ -884,6 +927,7 @@ tabs = st.tabs(
         "🧠 Conviction & Allocation",
         "🧩 Portfolio Intelligence",
         "📝 Decision Journal",
+        "🤖 AI Analyst",
         "⚙️ System Status",
     ]
 )
@@ -1500,10 +1544,182 @@ with tabs[6]:
     )
 
 
+
 # ==================================================
-# 8. System Status
+# 8. AI Analyst
 # ==================================================
 with tabs[7]:
+    section_intro(
+        "AI Analyst",
+        "Rules-based analyst layer that converts the system output into a practical review queue.",
+        "Analyst Layer",
+    )
+
+    combined_df = get_active_combined_df()
+    stock_master_df = get_active_stock_master_df()
+    portfolio_df = get_active_portfolio_df()
+    compatibility_df = st.session_state.get("portfolio_compatibility_df", None)
+
+    market_tone = "Supportive" if engine_a_score >= 70 else "Selective" if engine_a_score >= 50 else "Defensive"
+    market_comment = (
+        "Market gate is supportive. Fresh deployment may be considered only where stock-level risk and conviction are also aligned."
+        if engine_a_score >= 70
+        else "Market gate is selective. Prioritise only the strongest candidates and avoid weak risk-reward setups."
+        if engine_a_score >= 50
+        else "Market gate is defensive. Preserve capital, restrict fresh deployment, and prioritise exits, guards, and review items."
+    )
+
+    record_card(
+        "Market Analyst Brief",
+        kicker="AI Analyst Layer",
+        fields=[
+            ("Engine A Score", f"{engine_a_score}/100"),
+            ("Market Regime", market_regime),
+            ("Analyst Tone", market_tone),
+        ],
+        note=market_comment,
+        badges=["Market Gate", market_tone],
+        accent="#2563eb",
+    )
+
+    if stock_master_df is None and combined_df is None and portfolio_df is None:
+        alert_box("Upload screener files and portfolio CSV to generate AI Analyst output.", "warning")
+
+    if stock_master_df is not None and not stock_master_df.empty:
+        st.markdown("### 🎯 Analyst Priority Queue")
+        analyst_candidates = stock_master_df.copy()
+
+        candidate_sort_cols = []
+        candidate_ascending = []
+        if "Best Conviction Score" in analyst_candidates.columns:
+            candidate_sort_cols.append("Best Conviction Score")
+            candidate_ascending.append(False)
+        elif "Conviction Score" in analyst_candidates.columns:
+            candidate_sort_cols.append("Conviction Score")
+            candidate_ascending.append(False)
+
+        if "Appearances" in analyst_candidates.columns:
+            candidate_sort_cols.append("Appearances")
+            candidate_ascending.append(False)
+
+        if candidate_sort_cols:
+            analyst_candidates = analyst_candidates.sort_values(candidate_sort_cols, ascending=candidate_ascending)
+
+        for _, row in analyst_candidates.head(8).iterrows():
+            stock_name = row.get("Stock", "Unknown Stock")
+            conviction = row.get("Best Conviction", row.get("Conviction", row.get("Conviction Level", "NA")))
+            score = row.get("Best Conviction Score", row.get("Conviction Score", "NA"))
+            action = row.get("Final Action", row.get("Position Action", row.get("Action", "Review")))
+            risk = row.get("Worst Risk", row.get("Risk Level", "NA"))
+            screeners = row.get("Screeners", row.get("Screener", "NA"))
+
+            note_parts = [
+                f"Candidate appears in {row.get('Appearances', 'NA')} screener appearance(s)." if "Appearances" in row else "",
+                f"Screeners: {screeners}." if str(screeners) != "NA" else "",
+                "Review for allocation only after portfolio concentration and liquidity checks.",
+            ]
+            note = " ".join(part for part in note_parts if part)
+
+            accent = "#047857" if "HIGH" in str(conviction).upper() or "HIGH" in str(action).upper() else "#2563eb"
+            record_card(
+                stock_name,
+                kicker="Analyst Priority Candidate",
+                fields=[
+                    ("Conviction", conviction),
+                    ("Score", score),
+                    ("Action", action),
+                    ("Risk", risk),
+                ],
+                note=note,
+                badges=[action, risk],
+                accent=accent,
+            )
+    else:
+        alert_box("Stock Master is not available yet. Upload the 5 screener files first.", "warning")
+
+    if combined_df is not None and not combined_df.empty:
+        st.markdown("### 🛡️ Analyst Risk Queue")
+        risk_df = combined_df.copy()
+        if "Risk Score" in risk_df.columns:
+            risk_df = risk_df.sort_values("Risk Score", ascending=False)
+        elif "Risk Level" in risk_df.columns:
+            risk_df["_risk_order"] = risk_df["Risk Level"].astype(str).str.upper().map({"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "LOW": 1}).fillna(0)
+            risk_df = risk_df.sort_values("_risk_order", ascending=False)
+
+        for _, row in risk_df.head(6).iterrows():
+            stock_name = row.get("Stock", "Unknown Stock")
+            risk_level = row.get("Risk Level", "NA")
+            risk_score = row.get("Risk Score", "NA")
+            exit_verdict = row.get("Exit Verdict", "NA")
+            rule_verdict = row.get("Rule Verdict", "NA")
+            screener = row.get("Screener", "NA")
+            note = row.get("Risk Note", row.get("Notes", "Review valuation, trend, leverage, and exit verdict before deployment."))
+
+            accent = "#b91c1c" if str(risk_level).upper() in ["HIGH", "CRITICAL"] else "#b45309" if str(risk_level).upper() == "MODERATE" else "#047857"
+            record_card(
+                stock_name,
+                kicker=f"Engine {row.get('Engine', 'NA')} | {screener}",
+                fields=[
+                    ("Risk Level", risk_level),
+                    ("Risk Score", risk_score),
+                    ("Exit Verdict", exit_verdict),
+                    ("Rule Verdict", rule_verdict),
+                ],
+                note=note,
+                badges=[risk_level, exit_verdict],
+                accent=accent,
+            )
+
+    if portfolio_df is not None and not portfolio_df.empty:
+        st.markdown("### 💼 Portfolio Analyst Brief")
+        invested_value = portfolio_df["Invested Value"].sum() if "Invested Value" in portfolio_df.columns else 0
+        current_value = portfolio_df["Current Value"].sum() if "Current Value" in portfolio_df.columns else 0
+        pnl = current_value - invested_value
+        pnl_pct = (pnl / invested_value * 100) if invested_value else 0
+
+        record_card(
+            "Portfolio Health Snapshot",
+            kicker="Portfolio Analyst",
+            fields=[
+                ("Invested Value", f"₹{invested_value:,.0f}"),
+                ("Current Value", f"₹{current_value:,.0f}"),
+                ("Unrealised P&L", f"₹{pnl:,.0f} ({pnl_pct:.2f}%)"),
+                ("Holdings", len(portfolio_df)),
+            ],
+            note="Portfolio view should be interpreted with concentration risk, sector exposure, and compatibility output.",
+            badges=["Portfolio", "Risk Review"],
+            accent="#7c3aed",
+        )
+
+        for flag in portfolio_risk_flags(portfolio_df)[:5]:
+            alert_box(flag, "warning")
+
+    if isinstance(compatibility_df, pd.DataFrame) and not compatibility_df.empty:
+        st.markdown("### 🧩 Compatibility Analyst Notes")
+        top_compat = compatibility_df.copy()
+        if "Compatibility Score" in top_compat.columns:
+            top_compat = top_compat.sort_values("Compatibility Score", ascending=False)
+        for _, row in top_compat.head(5).iterrows():
+            record_card(
+                row.get("Stock", "Unknown Stock"),
+                kicker="Portfolio Compatibility",
+                fields=[
+                    ("Status", row.get("Status", "NA")),
+                    ("Master Conviction", row.get("Master Conviction", "NA")),
+                    ("Master Action", row.get("Master Action", "NA")),
+                    ("Compatibility Score", row.get("Compatibility Score", "NA")),
+                    ("Action", row.get("Compatibility Action", row.get("Action", "Review"))),
+                ],
+                note=row.get("Compatibility Note", "Review holding against current stock master view."),
+                badges=[row.get("Status", "NA"), row.get("Compatibility Action", row.get("Action", "Review"))],
+                accent="#0f766e",
+            )
+
+
+# ==================================================
+# 9. System Status
+# ==================================================
+with tabs[8]:
     section_intro(
         "System Status",
         "Build map and module readiness. This helps keep the system disciplined before adding more intelligence layers.",
@@ -1513,7 +1729,7 @@ with tabs[7]:
     modules_df = pd.DataFrame(
         [
             {"Module": "White Premium UI", "Status": f"Connected {APP_VERSION}"},
-            {"Module": "Navigation Tabs", "Status": "Connected v1.3.0"},
+            {"Module": "Navigation Tabs", "Status": "Connected v1.4.0"},
             {"Module": "Engine A Market Gate", "Status": "Connected v0.2"},
             {"Module": "Engine B Momentum", "Status": "Rules Connected"},
             {"Module": "Engine C Value", "Status": "Rules Connected"},
@@ -1525,8 +1741,8 @@ with tabs[7]:
             {"Module": "Stock Master View", "Status": "Connected v0.1"},
             {"Module": "Portfolio Compatibility", "Status": "Connected v0.1"},
             {"Module": "Decision Journal", "Status": "Connected v0.1"},
-            {"Module": "AI Analyst Layer", "Status": "Not Started"},
+            {"Module": "AI Analyst Layer", "Status": "Connected v0.1"},
         ]
     )
     compact_dataframe(modules_df, height=520)
-    alert_box("v1.3.0 navigation and dashboard restructure loaded. Next build should add AI Analyst Layer only after this layout is stable.", "success")
+    alert_box("v1.4.0 AI Analyst Layer connected. Previous dashboard modules and tab visibility fixes are preserved.", "success")
