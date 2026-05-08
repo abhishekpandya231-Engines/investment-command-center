@@ -40,7 +40,7 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Premium White Theme + Clean Mobile Cards
+# Premium White Theme + Compact Pro UI
 # --------------------------------------------------
 st.markdown(
     """
@@ -367,7 +367,7 @@ st.markdown(
         }
 
 
-        /* v1.2.3 clean mobile override */
+        /* v1.2.4 clean mobile override */
         .icc-card-grid {
             grid-template-columns: 1fr !important;
             overflow: hidden !important;
@@ -378,6 +378,103 @@ st.markdown(
         .icc-card-note {
             overflow-wrap: anywhere !important;
             word-break: normal !important;
+        }
+
+        @media (min-width: 900px) {
+            .icc-card-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+
+
+        /* v1.2.4 Compact Pro UI override */
+        .icc-mobile-card {
+            border-radius: 18px !important;
+            padding: 14px 14px 13px 14px !important;
+            margin: 10px 0 14px 0 !important;
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.055) !important;
+        }
+
+        .icc-mobile-card.good { border-left: 5px solid #047857 !important; }
+        .icc-mobile-card.warn { border-left: 5px solid #B45309 !important; }
+        .icc-mobile-card.danger { border-left: 5px solid #B91C1C !important; }
+        .icc-mobile-card.info { border-left: 5px solid #2563EB !important; }
+
+        .icc-card-kicker {
+            font-size: 0.68rem !important;
+            letter-spacing: 0.11em !important;
+            margin-bottom: 5px !important;
+        }
+
+        .icc-card-title {
+            font-size: 1.02rem !important;
+            line-height: 1.16 !important;
+            margin-bottom: 9px !important;
+        }
+
+        .icc-card-grid {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 6px !important;
+            margin: 8px 0 !important;
+        }
+
+        .icc-card-field {
+            display: grid !important;
+            grid-template-columns: 38% minmax(0, 1fr) !important;
+            align-items: start !important;
+            column-gap: 8px !important;
+            background: #F8FAFC !important;
+            border: 1px solid #E5E7EB !important;
+            border-radius: 12px !important;
+            padding: 8px 10px !important;
+            min-height: auto !important;
+        }
+
+        .icc-card-label {
+            font-size: 0.68rem !important;
+            line-height: 1.25 !important;
+            margin-bottom: 0 !important;
+            color: #64748B !important;
+        }
+
+        .icc-card-value {
+            font-size: 0.82rem !important;
+            line-height: 1.3 !important;
+            text-align: right !important;
+            overflow-wrap: anywhere !important;
+        }
+
+        .icc-card-badge-row {
+            gap: 6px !important;
+            margin-top: 8px !important;
+        }
+
+        .icc-card-badge {
+            font-size: 0.68rem !important;
+            padding: 5px 8px !important;
+        }
+
+        .icc-card-note {
+            font-size: 0.82rem !important;
+            line-height: 1.42 !important;
+            padding: 9px 10px !important;
+            margin-top: 9px !important;
+            border-radius: 12px !important;
+        }
+
+        @media (max-width: 640px) {
+            h1 { font-size: 2.25rem !important; line-height: 1.03 !important; }
+            h2 { font-size: 2.0rem !important; line-height: 1.05 !important; }
+            h3 { font-size: 1.65rem !important; line-height: 1.08 !important; }
+
+            .icc-card-field {
+                grid-template-columns: 40% minmax(0, 1fr) !important;
+            }
+
+            div[data-testid="stMetric"] {
+                min-height: 88px !important;
+            }
         }
 
         @media (min-width: 900px) {
@@ -451,10 +548,18 @@ def render_section_card(title, subtitle):
 
 
 
+
 def render_mobile_card(title, kicker="", fields=None, note="", tone="info", badges=None):
-    """Render a mobile-first premium card without raw HTML leakage."""
+    """Render a compact mobile-first premium card without raw HTML leakage."""
     fields = fields or []
     badges = badges or []
+
+    def short_text(value, max_chars=210):
+        text = safe_card_value(value, default="")
+        text = " ".join(str(text).split())
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars].rsplit(" ", 1)[0] + " ..."
 
     field_parts = []
     for label, value in fields:
@@ -478,7 +583,7 @@ def render_mobile_card(title, kicker="", fields=None, note="", tone="info", badg
 
     note_html = ""
     if note:
-        safe_note = "<br>".join(html.escape(str(note)).splitlines())
+        safe_note = html.escape(short_text(note, max_chars=220))
         note_html = f'<div class="icc-card-note">{safe_note}</div>'
 
     safe_tone = html.escape(str(tone))
@@ -775,7 +880,7 @@ st.markdown(
     """
     <div class="icc-hero">
         <div class="icc-hero-title">📊 Investment<br>Command Center</div>
-        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.3</div>
+        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.4</div>
         <div class="icc-pill-row">
             <div class="icc-pill">White Premium UI</div>
             <div class="icc-pill">Rules-Based</div>
@@ -837,10 +942,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.2.3")
+    st.metric("System Version", "v1.2.4")
 
 with col2:
-    st.metric("Build Stage", "Clean Mobile Cards")
+    st.metric("Build Stage", "Compact Pro UI")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -1039,7 +1144,7 @@ with tab1:
                 ascending=[True, False, True],
             )
 
-            for _, watch_row in sorted_risk_watchlist_df.head(10).iterrows():
+            for _, watch_row in sorted_risk_watchlist_df.head(5).iterrows():
                 render_mobile_card(
                     title=watch_row.get("Stock", "Unknown"),
                     kicker=f"Engine {watch_row.get('Engine', 'NA')} | {watch_row.get('Screener', 'NA')}",
@@ -1061,7 +1166,7 @@ with tab1:
 
             st.subheader("🧾 Top Risk Notes")
 
-            top_risk_notes_df = sorted_risk_watchlist_df.head(12)
+            top_risk_notes_df = sorted_risk_watchlist_df.head(5)
 
             for _, risk_row in top_risk_notes_df.iterrows():
                 stock_name = risk_row.get("Stock", "Unknown")
@@ -1157,7 +1262,7 @@ with tab1:
                 ascending=[False, True],
             )
 
-            for _, conviction_row in sorted_top_conviction_df.head(12).iterrows():
+            for _, conviction_row in sorted_top_conviction_df.head(5).iterrows():
                 conviction_level = conviction_row.get("Conviction Level", "NA")
 
                 render_mobile_card(
@@ -1259,7 +1364,7 @@ with tab1:
 
             st.subheader("🧾 Top Allocation Notes")
 
-            top_allocation_notes_df = sorted_position_candidates_df.head(12)
+            top_allocation_notes_df = sorted_position_candidates_df.head(5)
 
             for _, position_row in top_allocation_notes_df.iterrows():
                 stock_name = position_row.get("Stock", "Unknown")
@@ -1344,7 +1449,7 @@ with tab1:
 
         stock_master_display_df = stock_master_df[stock_master_display_columns].copy()
 
-        for _, master_row in stock_master_display_df.head(12).iterrows():
+        for _, master_row in stock_master_display_df.head(5).iterrows():
             action_value = master_row.get("Final Allocation Action", "NA")
 
             render_mobile_card(
@@ -1412,7 +1517,7 @@ with tab1:
         if not power_picks.empty:
             st.success("Stocks appearing in multiple screeners detected.")
 
-            for _, overlap_row in power_picks.head(10).iterrows():
+            for _, overlap_row in power_picks.head(5).iterrows():
                 render_mobile_card(
                     title=overlap_row.get("Stock", "Unknown"),
                     kicker="Cross-Engine Overlap",
@@ -1675,7 +1780,7 @@ with tab2:
 
             st.subheader("🧾 Portfolio Action Notes")
 
-            top_portfolio_notes_df = portfolio_compatibility_df.head(12)
+            top_portfolio_notes_df = portfolio_compatibility_df.head(3)
 
             for _, holding_row in top_portfolio_notes_df.iterrows():
                 stock_name = holding_row.get("Stock", "Unknown")
@@ -1742,7 +1847,7 @@ with tab2:
 
                 fresh_display_df = fresh_candidates_df[fresh_candidate_columns].head(25).copy()
 
-                for _, fresh_row in fresh_display_df.head(12).iterrows():
+                for _, fresh_row in fresh_display_df.head(5).iterrows():
                     action_value = fresh_row.get("Final Allocation Action", "NA")
 
                     render_mobile_card(
@@ -1863,7 +1968,7 @@ with tab3:
         st.success("Decision journal loaded successfully.")
 
     if not journal_df.empty:
-        for _, journal_row in journal_df.head(10).iterrows():
+        for _, journal_row in journal_df.head(5).iterrows():
             render_mobile_card(
                 title=journal_row.get("Stock", "Decision"),
                 kicker=journal_row.get("Date", "Decision Journal"),
@@ -1917,4 +2022,4 @@ modules = pd.DataFrame(
 with st.expander("View current build modules table"):
     st.dataframe(modules, use_container_width=True)
 
-st.success("Clean mobile card layout v1.2.3 loaded successfully.")
+st.success("Clean mobile card layout v1.2.4 loaded successfully.")
