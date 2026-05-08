@@ -24,13 +24,13 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.3.1
-# Navigation + Command Center Restructure + Tab Visibility Fix
+# Investment Command Center v1.3.0
+# Navigation + Command Center Restructure
 # ==================================================
 
-APP_VERSION = "v1.3.1"
-BUILD_STAGE = "Command Center Navigation + Tab Visibility Fix"
-LAST_UPDATED = "08 May 2026"
+APP_VERSION = "v1.3.0"
+BUILD_STAGE = "Command Center Navigation"
+LAST_UPDATED = "07 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
     "Stock",
@@ -346,50 +346,16 @@ st.markdown(
         }
 
         .stTabs [data-baseweb="tab"] {
-            border-radius: 999px !important;
-            padding: 10px 15px !important;
-            font-weight: 900 !important;
-            color: var(--icc-navy) !important;
-            white-space: nowrap !important;
-            background: #ffffff !important;
-            border: 1px solid transparent !important;
-        }
-
-        .stTabs [data-baseweb="tab"] p,
-        .stTabs [data-baseweb="tab"] span,
-        .stTabs [data-baseweb="tab"] div {
-            color: var(--icc-navy) !important;
-            font-weight: 900 !important;
-        }
-
-        .stTabs [data-baseweb="tab"]:hover {
-            background: #eef5ff !important;
-            color: var(--icc-navy) !important;
-        }
-
-        .stTabs [data-baseweb="tab"]:hover p,
-        .stTabs [data-baseweb="tab"]:hover span,
-        .stTabs [data-baseweb="tab"]:hover div {
-            color: var(--icc-navy) !important;
+            border-radius: 999px;
+            padding: 10px 15px;
+            font-weight: 900;
+            color: #475569;
+            white-space: nowrap;
         }
 
         .stTabs [aria-selected="true"] {
             background: var(--icc-navy) !important;
             color: #ffffff !important;
-            border: 1px solid var(--icc-navy) !important;
-            box-shadow: 0 10px 22px rgba(8, 33, 63, 0.18) !important;
-        }
-
-        .stTabs [aria-selected="true"] p,
-        .stTabs [aria-selected="true"] span,
-        .stTabs [aria-selected="true"] div {
-            color: #ffffff !important;
-            font-weight: 950 !important;
-        }
-
-        .stTabs [data-baseweb="tab-highlight"] {
-            background-color: var(--icc-blue) !important;
-            height: 3px !important;
         }
 
         div[data-testid="stExpander"] {
@@ -1547,7 +1513,7 @@ with tabs[7]:
     modules_df = pd.DataFrame(
         [
             {"Module": "White Premium UI", "Status": f"Connected {APP_VERSION}"},
-            {"Module": "Navigation Tabs", "Status": "Connected v1.3.1"},
+            {"Module": "Navigation Tabs", "Status": "Connected v1.3.0"},
             {"Module": "Engine A Market Gate", "Status": "Connected v0.2"},
             {"Module": "Engine B Momentum", "Status": "Rules Connected"},
             {"Module": "Engine C Value", "Status": "Rules Connected"},
@@ -1563,4 +1529,4 @@ with tabs[7]:
         ]
     )
     compact_dataframe(modules_df, height=520)
-    alert_box("v1.3.1 navigation, dashboard restructure, and tab visibility fix loaded. Next build should add AI Analyst Layer only after this layout is stable.", "success")
+    alert_box("v1.3.0 navigation and dashboard restructure loaded. Next build should add AI Analyst Layer only after this layout is stable.", "success")
