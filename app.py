@@ -1,7 +1,5 @@
 from datetime import datetime
 import html
-import os
-import pickle
 from typing import Any, Iterable, Optional
 
 import pandas as pd
@@ -26,12 +24,12 @@ from core.decision_journal import load_decision_journal, summarize_decision_jour
 
 
 # ==================================================
-# Investment Command Center v1.4.1
-# AI Analyst Column Mapping Fix + Tab Visibility Hardening
+# Investment Command Center v1.4.2
+# Compact Mobile Cards + Bulletproof Light Tab Visibility
 # ==================================================
 
-APP_VERSION = "v1.4.1"
-BUILD_STAGE = "AI Analyst Layer Fixed"
+APP_VERSION = "v1.4.2"
+BUILD_STAGE = "Compact Mobile Analyst"
 LAST_UPDATED = "08 May 2026"
 
 PORTFOLIO_REQUIRED_COLUMNS = [
@@ -64,21 +62,6 @@ SCREENER_KEY_COLUMNS = [
     "NSE Code",
 ]
 
-
-# --------------------------------------------------
-# Persistent Runtime Storage
-# --------------------------------------------------
-PERSISTENCE_DIR = "data"
-PERSISTENCE_FILE = os.path.join(PERSISTENCE_DIR, "icc_persistent_state.pkl")
-PERSISTENT_KEYS = [
-    "combined_df",
-    "stock_master_df",
-    "stock_master_ready",
-    "portfolio_df",
-    "portfolio_compatibility_df",
-    "last_screener_upload_time",
-    "last_portfolio_upload_time",
-]
 
 # --------------------------------------------------
 # Page Setup
@@ -391,17 +374,19 @@ st.markdown(
         }
 
         .stTabs [aria-selected="true"] {
-            background: var(--icc-navy) !important;
-            color: #ffffff !important;
-            border: 1px solid var(--icc-navy) !important;
-            box-shadow: 0 10px 22px rgba(8, 33, 63, 0.18) !important;
+            background: #eef5ff !important;
+            color: var(--icc-navy) !important;
+            border: 1px solid #bfdbfe !important;
+            box-shadow: inset 0 -3px 0 var(--icc-blue), 0 10px 22px rgba(8, 33, 63, 0.10) !important;
         }
 
         .stTabs [aria-selected="true"] p,
         .stTabs [aria-selected="true"] span,
         .stTabs [aria-selected="true"] div {
-            color: #ffffff !important;
+            color: var(--icc-navy) !important;
             font-weight: 950 !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: var(--icc-navy) !important;
         }
 
         .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p,
@@ -420,9 +405,9 @@ st.markdown(
         .stTabs [aria-selected="true"] div,
         .stTabs button[role="tab"][aria-selected="true"],
         .stTabs button[role="tab"][aria-selected="true"] * {
-            color: #ffffff !important;
+            color: var(--icc-navy) !important;
             opacity: 1 !important;
-            -webkit-text-fill-color: #ffffff !important;
+            -webkit-text-fill-color: var(--icc-navy) !important;
             text-shadow: none !important;
         }
 
@@ -454,10 +439,20 @@ st.markdown(
         @media (max-width: 768px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
             .icc-hero { padding: 26px 22px; border-radius: 28px; }
-            .icc-fields { grid-template-columns: 1fr; gap: 8px; }
-            .icc-card { padding: 20px 18px 20px 20px; border-radius: 26px; }
-            .icc-field { padding: 10px 12px; min-height: 52px; }
-            .icc-note { padding: 12px 14px; }
+            .icc-hero-title { font-size: 2.35rem; line-height: 0.98; }
+            .icc-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+            .icc-card { padding: 18px 16px 18px 20px; border-radius: 26px; margin: 0.62rem 0 0.85rem 0; }
+            .icc-card-title { font-size: 1.08rem; margin-bottom: 8px; }
+            .icc-card-kicker { font-size: 0.68rem; letter-spacing: 0.14em; }
+            .icc-field { padding: 9px 10px; min-height: 48px; border-radius: 15px; }
+            .icc-field-label { font-size: 0.72rem; }
+            .icc-field-value { font-size: 0.88rem; line-height: 1.25; }
+            .icc-note { padding: 11px 12px; font-size: 0.90rem; line-height: 1.45; }
+            .icc-badge { padding: 7px 10px; font-size: 0.75rem; }
+        }
+
+        @media (max-width: 360px) {
+            .icc-fields { grid-template-columns: 1fr; }
         }
     </style>
     """,
@@ -485,8 +480,19 @@ def esc(value: Any, default: str = "NA") -> str:
     return html.escape(safe_value(value, default=default))
 
 
+def html_to_plain_text(value: Any, default: str = "") -> str:
+    """Convert any saved HTML/card markup into clean readable text for display."""
+    text = safe_value(value, default=default)
+    text = html.unescape(text)
+    text = re.sub(r"<\s*br\s*/?\s*>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"</\s*(div|p|li|span|section|article)\s*>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def shorten(value: Any, max_chars: int = 280) -> str:
-    text = " ".join(safe_value(value, default="").split())
+    text = html_to_plain_text(value, default="")
     if len(text) <= max_chars:
         return text
     return text[:max_chars].rsplit(" ", 1)[0] + " ..."
@@ -556,7 +562,8 @@ def record_card(
         if safe_value(badge, default="") != ""
     )
     badge_block = f"<div class='icc-badges'>{badge_html}</div>" if badge_html else ""
-    note_block = f"<div class='icc-note'>{esc(shorten(note, 320))}</div>" if note else ""
+    clean_note = shorten(note, 320)
+    note_block = f"<div class='icc-note'>{esc(clean_note)}</div>" if clean_note else ""
 
     st.markdown(
         f"""
@@ -808,61 +815,6 @@ def get_active_portfolio_df() -> Optional[pd.DataFrame]:
     return None
 
 
-def save_persistent_state() -> None:
-    """Save uploaded screener, stock master, portfolio, and compatibility data to local runtime storage."""
-    try:
-        os.makedirs(PERSISTENCE_DIR, exist_ok=True)
-        payload = {
-            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "app_version": APP_VERSION,
-            "data": {key: st.session_state.get(key) for key in PERSISTENT_KEYS if key in st.session_state},
-        }
-        with open(PERSISTENCE_FILE, "wb") as file:
-            pickle.dump(payload, file)
-        st.session_state["persistent_state_saved_at"] = payload["saved_at"]
-    except Exception as error:
-        st.session_state["persistent_state_error"] = f"Persistent save failed: {error}"
-
-
-def load_persistent_state() -> bool:
-    """Restore data from local runtime storage once per app session."""
-    if st.session_state.get("persistent_state_loaded_once"):
-        return bool(st.session_state.get("persistent_state_available", False))
-
-    st.session_state["persistent_state_loaded_once"] = True
-    if not os.path.exists(PERSISTENCE_FILE):
-        st.session_state["persistent_state_available"] = False
-        return False
-
-    try:
-        with open(PERSISTENCE_FILE, "rb") as file:
-            payload = pickle.load(file)
-        data = payload.get("data", {}) if isinstance(payload, dict) else {}
-        for key, value in data.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
-        st.session_state["persistent_state_available"] = True
-        st.session_state["persistent_state_saved_at"] = payload.get("saved_at", "Unknown")
-        return True
-    except Exception as error:
-        st.session_state["persistent_state_available"] = False
-        st.session_state["persistent_state_error"] = f"Persistent load failed: {error}"
-        return False
-
-
-def clear_persistent_state() -> None:
-    """Clear stored runtime data and matching session state keys."""
-    try:
-        if os.path.exists(PERSISTENCE_FILE):
-            os.remove(PERSISTENCE_FILE)
-        for key in PERSISTENT_KEYS:
-            st.session_state.pop(key, None)
-        st.session_state["persistent_state_available"] = False
-        st.session_state["persistent_state_saved_at"] = "Cleared"
-    except Exception as error:
-        st.session_state["persistent_state_error"] = f"Persistent clear failed: {error}"
-
-
 def update_portfolio_compatibility() -> None:
     portfolio_df = get_active_portfolio_df()
     stock_master_df = get_active_stock_master_df()
@@ -895,9 +847,7 @@ def process_screener_files(screener_files, engine_a_score: float, market_regime:
     stock_master_df = create_stock_master_view(combined_df)
     save_stock_master_to_session(stock_master_df)
     st.session_state["combined_df"] = combined_df.copy()
-    st.session_state["last_screener_upload_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     update_portfolio_compatibility()
-    save_persistent_state()
     return combined_df
 
 
@@ -920,9 +870,7 @@ def process_portfolio_file(portfolio_file, engine_a_score: float, market_regime:
         market_regime=market_regime,
     )
     st.session_state["portfolio_df"] = portfolio_df.copy()
-    st.session_state["last_portfolio_upload_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     update_portfolio_compatibility()
-    save_persistent_state()
     return portfolio_df, []
 
 
@@ -994,10 +942,6 @@ engine_a_inputs = render_engine_a_sidebar()
 engine_a_result = calculate_engine_a_score(engine_a_inputs)
 engine_a_score = engine_a_result["score"]
 st.session_state["engine_a_result"] = engine_a_result
-load_persistent_state()
-update_portfolio_compatibility()
-if "persistent_state_error" in st.session_state:
-    st.sidebar.warning(st.session_state["persistent_state_error"])
 
 
 # --------------------------------------------------
@@ -1129,18 +1073,6 @@ with tabs[1]:
         "Upload screeners and holdings separately. The system keeps screener intelligence and portfolio P&L cleanly separated.",
         "Data intake",
     )
-
-    if st.session_state.get("persistent_state_available"):
-        alert_box(
-            f"Saved data restored automatically. Last saved: {st.session_state.get('persistent_state_saved_at', 'Unknown')}",
-            "success",
-        )
-    else:
-        alert_box("No saved runtime data found yet. Upload once and the app will remember it.", "info")
-
-    if st.button("Clear saved app data", type="secondary"):
-        clear_persistent_state()
-        st.rerun()
 
     st.subheader("📁 Multi-Screener Upload")
     st.write("Supported files: **Mom.csv, C1.csv, C2.csv, D1.csv, D2.csv**")
@@ -1897,7 +1829,7 @@ with tabs[8]:
     modules_df = pd.DataFrame(
         [
             {"Module": "White Premium UI", "Status": f"Connected {APP_VERSION}"},
-            {"Module": "Navigation Tabs", "Status": "Connected v1.4.1"},
+            {"Module": "Navigation Tabs", "Status": "Light active tab fix v1.4.2"},
             {"Module": "Engine A Market Gate", "Status": "Connected v0.2"},
             {"Module": "Engine B Momentum", "Status": "Rules Connected"},
             {"Module": "Engine C Value", "Status": "Rules Connected"},
@@ -1910,8 +1842,7 @@ with tabs[8]:
             {"Module": "Portfolio Compatibility", "Status": "Connected v0.1"},
             {"Module": "Decision Journal", "Status": "Connected v0.1"},
             {"Module": "AI Analyst Layer", "Status": "Column mapping fixed v0.2"},
-            {"Module": "Persistent Data Storage", "Status": "Connected v0.1"},
         ]
     )
     compact_dataframe(modules_df, height=520)
-    alert_box("v1.4.1 AI Analyst column mapping fixed. Previous dashboard modules and tab visibility fixes are preserved.", "success")
+    alert_box("v1.4.2 compact mobile cards added. Active tabs now use light-blue selection so tab text remains visible on mobile.", "success")
