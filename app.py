@@ -40,7 +40,7 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Premium White Theme + Mobile Card Layout
+# Premium White Theme + Clean Mobile Cards
 # --------------------------------------------------
 st.markdown(
     """
@@ -366,6 +366,26 @@ st.markdown(
             .icc-card-title { font-size: 1.08rem; }
         }
 
+
+        /* v1.2.3 clean mobile override */
+        .icc-card-grid {
+            grid-template-columns: 1fr !important;
+            overflow: hidden !important;
+        }
+
+        .icc-mobile-card,
+        .icc-card-field,
+        .icc-card-note {
+            overflow-wrap: anywhere !important;
+            word-break: normal !important;
+        }
+
+        @media (min-width: 900px) {
+            .icc-card-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -430,43 +450,49 @@ def render_section_card(title, subtitle):
     )
 
 
+
 def render_mobile_card(title, kicker="", fields=None, note="", tone="info", badges=None):
-    """Render a mobile-first premium card."""
+    """Render a mobile-first premium card without raw HTML leakage."""
     fields = fields or []
     badges = badges or []
 
-    field_html = ""
+    field_parts = []
     for label, value in fields:
-        field_html += f"""
-            <div class="icc-card-field">
-                <div class="icc-card-label">{html.escape(str(label))}</div>
-                <div class="icc-card-value">{esc(value)}</div>
-            </div>
-        """
+        field_parts.append(
+            '<div class="icc-card-field">'
+            f'<div class="icc-card-label">{html.escape(str(label))}</div>'
+            f'<div class="icc-card-value">{esc(value)}</div>'
+            '</div>'
+        )
+    field_html = "".join(field_parts)
 
     badge_html = ""
     if badges:
-        badge_html = '<div class="icc-card-badge-row">'
-        for badge in badges:
-            badge_html += f'<span class="icc-card-badge">{esc(badge)}</span>'
-        badge_html += "</div>"
+        badge_items = "".join(
+            f'<span class="icc-card-badge">{esc(badge)}</span>'
+            for badge in badges
+            if safe_card_value(badge, default="") != ""
+        )
+        if badge_items:
+            badge_html = f'<div class="icc-card-badge-row">{badge_items}</div>'
 
     note_html = ""
     if note:
-        note_html = f'<div class="icc-card-note">{html.escape(str(note))}</div>'
+        safe_note = "<br>".join(html.escape(str(note)).splitlines())
+        note_html = f'<div class="icc-card-note">{safe_note}</div>'
 
-    st.markdown(
-        f"""
-        <div class="icc-mobile-card {html.escape(str(tone))}">
-            <div class="icc-card-kicker">{html.escape(str(kicker))}</div>
-            <div class="icc-card-title">{html.escape(str(title))}</div>
-            <div class="icc-card-grid">{field_html}</div>
-            {badge_html}
-            {note_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    safe_tone = html.escape(str(tone))
+    card_html = (
+        f'<div class="icc-mobile-card {safe_tone}">'
+        f'<div class="icc-card-kicker">{html.escape(str(kicker))}</div>'
+        f'<div class="icc-card-title">{html.escape(str(title))}</div>'
+        f'<div class="icc-card-grid">{field_html}</div>'
+        f'{badge_html}'
+        f'{note_html}'
+        '</div>'
     )
+
+    st.markdown(card_html, unsafe_allow_html=True)
 
 
 # --------------------------------------------------
@@ -749,7 +775,7 @@ st.markdown(
     """
     <div class="icc-hero">
         <div class="icc-hero-title">📊 Investment<br>Command Center</div>
-        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.2</div>
+        <div class="icc-hero-subtitle">Rules-Based Portfolio Intelligence System | v1.2.3</div>
         <div class="icc-pill-row">
             <div class="icc-pill">White Premium UI</div>
             <div class="icc-pill">Rules-Based</div>
@@ -811,10 +837,10 @@ engine_a_score = engine_a_result["score"]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("System Version", "v1.2.2")
+    st.metric("System Version", "v1.2.3")
 
 with col2:
-    st.metric("Build Stage", "Mobile Card Layout")
+    st.metric("Build Stage", "Clean Mobile Cards")
 
 with col3:
     st.metric("Last Updated", datetime.now().strftime("%d %b %Y"))
@@ -971,7 +997,8 @@ with tab1:
             .sort_values(["Engine", "Risk Level"])
         )
 
-        st.dataframe(risk_level_df, use_container_width=True)
+        with st.expander("View risk level count table"):
+            st.dataframe(risk_level_df, use_container_width=True)
 
         st.divider()
 
@@ -1012,10 +1039,23 @@ with tab1:
                 ascending=[True, False, True],
             )
 
-            st.dataframe(
-                sorted_risk_watchlist_df,
-                use_container_width=True,
-            )
+            for _, watch_row in sorted_risk_watchlist_df.head(10).iterrows():
+                render_mobile_card(
+                    title=watch_row.get("Stock", "Unknown"),
+                    kicker=f"Engine {watch_row.get('Engine', 'NA')} | {watch_row.get('Screener', 'NA')}",
+                    fields=[
+                        ("Risk Level", watch_row.get("Risk Level", "NA")),
+                        ("Risk Score", f"{watch_row.get('Risk Score', 'NA')}/100"),
+                        ("Exit Verdict", watch_row.get("Exit Verdict", "NA")),
+                        ("Rule Verdict", watch_row.get("Rule Verdict", "NA")),
+                    ],
+                    note=watch_row.get("Risk Notes", ""),
+                    tone="danger" if watch_row.get("Risk Level", "") in ["HIGH", "CRITICAL"] else "warn",
+                    badges=[watch_row.get("Risk Level", "NA"), watch_row.get("Exit Verdict", "NA")],
+                )
+
+            with st.expander("View full high/moderate risk watchlist table"):
+                st.dataframe(sorted_risk_watchlist_df, use_container_width=True)
 
             st.divider()
 
@@ -1075,7 +1115,8 @@ with tab1:
             .sort_values(["Engine", "Conviction Level"])
         )
 
-        st.dataframe(conviction_level_df, use_container_width=True)
+        with st.expander("View conviction level count table"):
+            st.dataframe(conviction_level_df, use_container_width=True)
 
         st.divider()
 
@@ -1167,7 +1208,8 @@ with tab1:
             .sort_values(["Engine", "Position Action"])
         )
 
-        st.dataframe(position_action_df, use_container_width=True)
+        with st.expander("View position action count table"):
+            st.dataframe(position_action_df, use_container_width=True)
 
         st.divider()
 
@@ -1338,7 +1380,8 @@ with tab1:
             .sort_values(["Engine", "Exit Verdict"])
         )
 
-        st.dataframe(verdict_summary, use_container_width=True)
+        with st.expander("View exit verdict summary table"):
+            st.dataframe(verdict_summary, use_container_width=True)
 
         st.divider()
 
@@ -1368,7 +1411,24 @@ with tab1:
 
         if not power_picks.empty:
             st.success("Stocks appearing in multiple screeners detected.")
-            st.dataframe(power_picks, use_container_width=True)
+
+            for _, overlap_row in power_picks.head(10).iterrows():
+                render_mobile_card(
+                    title=overlap_row.get("Stock", "Unknown"),
+                    kicker="Cross-Engine Overlap",
+                    fields=[
+                        ("Engines", overlap_row.get("Engines", "NA")),
+                        ("Screeners", overlap_row.get("Screeners", "NA")),
+                        ("Overlap Count", overlap_row.get("Count", "NA")),
+                        ("Sector", overlap_row.get("Sector", "NA")),
+                    ],
+                    note="This stock appears in multiple screeners and should be reviewed as a possible higher-priority candidate.",
+                    tone="info",
+                    badges=[overlap_row.get("Engines", "NA")],
+                )
+
+            with st.expander("View full cross-engine overlap table"):
+                st.dataframe(power_picks, use_container_width=True)
         else:
             st.info("No multi-screener overlaps detected yet.")
 
@@ -1404,10 +1464,11 @@ with tab1:
         watchlist_columns = [col for col in watchlist_columns if col in watchlist_df.columns]
 
         if not watchlist_df.empty:
-            st.dataframe(
-                watchlist_df[watchlist_columns].sort_values(["Exit Verdict", "Stock"]),
-                use_container_width=True,
-            )
+            with st.expander("View Exit / Guard watchlist table"):
+                st.dataframe(
+                    watchlist_df[watchlist_columns].sort_values(["Exit Verdict", "Stock"]),
+                    use_container_width=True,
+                )
         else:
             st.success("No Exit/Guard items detected at current Engine A score.")
 
@@ -1426,10 +1487,11 @@ with tab1:
             "Exit Reason",
         ] + available_cols + ["Market Cap Category"]
 
-        st.dataframe(
-            combined_df[display_cols],
-            use_container_width=True,
-        )
+        with st.expander("View full combined screener table"):
+            st.dataframe(
+                combined_df[display_cols],
+                use_container_width=True,
+            )
 
         st.divider()
 
@@ -1442,7 +1504,8 @@ with tab1:
                 .rename(columns={"size": "Stock Count"})
                 .sort_values("Stock Count", ascending=False)
             )
-            st.dataframe(sector_counts, use_container_width=True)
+            with st.expander("View screener sector exposure table"):
+                st.dataframe(sector_counts, use_container_width=True)
 
     else:
         st.info("Upload Mom.csv, C1.csv, C2.csv, D1.csv, and D2.csv to begin screener intelligence.")
@@ -1526,7 +1589,8 @@ with tab2:
                 .size()
                 .rename(columns={"size": "Count"})
             )
-            st.dataframe(verdict_counts, use_container_width=True)
+            with st.expander("View portfolio exit verdict table"):
+                st.dataframe(verdict_counts, use_container_width=True)
 
             st.divider()
 
@@ -1568,7 +1632,8 @@ with tab2:
             st.divider()
 
             st.subheader("📊 Holdings")
-            st.dataframe(portfolio_df, use_container_width=True)
+            with st.expander("View uploaded holdings table"):
+                st.dataframe(portfolio_df, use_container_width=True)
 
             st.divider()
 
@@ -1712,13 +1777,15 @@ with tab2:
                 st.write("### Sector Exposure")
                 sector_df = portfolio_df.groupby("Sector", as_index=False)["Current Value"].sum()
                 sector_df["Sector Weight %"] = sector_df["Current Value"] / current_value * 100 if current_value > 0 else 0
-                st.dataframe(sector_df.sort_values("Sector Weight %", ascending=False), use_container_width=True)
+                with st.expander("View sector exposure table"):
+                    st.dataframe(sector_df.sort_values("Sector Weight %", ascending=False), use_container_width=True)
 
             with col2:
                 st.write("### Market Cap Exposure")
                 mcap_df = portfolio_df.groupby("Market Cap Category", as_index=False)["Current Value"].sum()
                 mcap_df["Market Cap Weight %"] = mcap_df["Current Value"] / current_value * 100 if current_value > 0 else 0
-                st.dataframe(mcap_df.sort_values("Market Cap Weight %", ascending=False), use_container_width=True)
+                with st.expander("View market cap exposure table"):
+                    st.dataframe(mcap_df.sort_values("Market Cap Weight %", ascending=False), use_container_width=True)
 
             st.divider()
 
@@ -1847,6 +1914,7 @@ modules = pd.DataFrame(
     ]
 )
 
-st.dataframe(modules, use_container_width=True)
+with st.expander("View current build modules table"):
+    st.dataframe(modules, use_container_width=True)
 
-st.success("Mobile card layout and premium white dashboard UI loaded successfully.")
+st.success("Clean mobile card layout v1.2.3 loaded successfully.")
